@@ -1707,6 +1707,7 @@ async function ensurePush() {
     return;
   }
   const reg = await navigator.serviceWorker.register('/sw.js');
+  reg.update().catch(() => {});   // proactively pick up new SW versions on every launch
   if (Notification.permission === 'granted') {
     try { await doSubscribe(reg); } catch {}   // re-sync after a server restart
     hidePushBar();
