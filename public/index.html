@@ -418,6 +418,20 @@ body{
 .adv-field input:focus,.adv-field textarea:focus,.adv-field select:focus{border-color:rgba(79,142,247,.6);}
 #adv-clear{margin-top:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--red);border-radius:10px;padding:10px;font-size:13px;cursor:pointer;font-family:inherit;}
 #adv-clear:active{background:var(--bg3);}
+
+/* Login overlay — replaces window.prompt(), which browsers silently suppress
+   in PWA/standalone modes (users just saw a blank dark screen). */
+#login-modal{position:fixed;inset:0;background:var(--bg);z-index:100;display:none;align-items:center;justify-content:center;padding:24px;}
+#login-modal.open{display:flex;}
+#login-box{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+#login-logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#4f8ef7,#b57cf5);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;margin-bottom:4px;}
+#login-title{font-size:20px;font-weight:700;color:var(--text);}
+#login-sub{font-size:13px;color:var(--text3);margin-bottom:8px;}
+#login-key{width:100%;background:var(--bg2);border:1.5px solid var(--border2);color:var(--text);border-radius:12px;padding:13px 16px;font-size:16px;text-align:center;outline:none;font-family:ui-monospace,monospace;letter-spacing:.06em;}
+#login-key:focus{border-color:rgba(79,142,247,.7);}
+#login-go{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+#login-go:active{opacity:.85;}
+#login-err{min-height:18px;font-size:13px;color:var(--red);}
 </style>
 </head>
 <body>
@@ -547,6 +561,17 @@ body{
   </div>
 </div>
 
+<div id="login-modal">
+  <div id="login-box">
+    <div id="login-logo">P</div>
+    <div id="login-title">PocketClaude</div>
+    <div id="login-sub">請輸入登入密鑰</div>
+    <input type="password" id="login-key" autocomplete="current-password" spellcheck="false">
+    <button id="login-go">登入</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
 <div id="sheet-bg" onclick="closeSheet()"></div>
 <div id="sheet">
   <div id="sheet-handle"></div>
@@ -571,6 +596,7 @@ const I18N = {
     res_allow:'已允許', res_deny:'已拒絕', res_timeout:'逾時（自動拒絕）',
     attached:'已接入 {n}', session_ended:'Session 已結束', new_chat:'新對話',
     login_prompt:'請輸入 PocketClaude 登入密鑰',
+    login_go:'登入', login_bad:'密鑰錯誤，請再試一次',
     push_enable:'啟用完成通知',
     ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
     ios_alert:'iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。',
@@ -594,6 +620,7 @@ const I18N = {
     res_allow:'Allowed', res_deny:'Denied', res_timeout:'Timed out (auto-denied)',
     attached:'Attached to {n}', session_ended:'Session ended', new_chat:'New chat',
     login_prompt:'Enter your PocketClaude login key',
+    login_go:'Sign in', login_bad:'Wrong key — try again',
     push_enable:'Enable notifications',
     ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
     ios_alert:'On iPhone, add this site to your Home Screen (Share → Add to Home Screen) and open it from there to enable push notifications.',
@@ -617,6 +644,7 @@ const I18N = {
     res_allow:'許可済み', res_deny:'拒否済み', res_timeout:'タイムアウト（自動拒否）',
     attached:'{n} に接続しました', session_ended:'セッション終了', new_chat:'新しいチャット',
     login_prompt:'PocketClaude のログインキーを入力してください',
+    login_go:'ログイン', login_bad:'キーが違います。もう一度どうぞ',
     push_enable:'通知を有効にする',
     ios_install:'iPhone：共有 → ホーム画面に追加してから開くと通知が使えます',
     ios_alert:'iPhone では先にこのサイトを「共有 → ホーム画面に追加」し、ホーム画面から開くと通知を有効にできます。',
@@ -640,6 +668,7 @@ const I18N = {
     res_allow:'已允许', res_deny:'已拒绝', res_timeout:'超时（自动拒绝）',
     attached:'已接入 {n}', session_ended:'会话已结束', new_chat:'新对话',
     login_prompt:'请输入 PocketClaude 登录密钥',
+    login_go:'登录', login_bad:'密钥错误，请再试一次',
     push_enable:'启用完成通知',
     ios_install:'iPhone：点「分享 → 添加到主屏幕」，从主屏幕打开才能开推送',
     ios_alert:'iPhone 上要先把这个网站「分享 → 添加到主屏幕」，再从主屏幕图标打开，才能启用推送。',
@@ -663,6 +692,7 @@ const I18N = {
     res_allow:'허용됨', res_deny:'거부됨', res_timeout:'시간 초과(자동 거부)',
     attached:'{n} 에 연결됨', session_ended:'세션 종료', new_chat:'새 대화',
     login_prompt:'PocketClaude 로그인 키를 입력하세요',
+    login_go:'로그인', login_bad:'키가 올바르지 않습니다. 다시 시도하세요',
     push_enable:'알림 켜기',
     ios_install:'iPhone: 공유 → 홈 화면에 추가 후, 홈 화면에서 열면 알림을 켤 수 있어요',
     ios_alert:'iPhone에서는 먼저 이 사이트를 「공유 → 홈 화면에 추가」하고 홈 화면 아이콘으로 열어야 알림을 켤 수 있습니다.',
@@ -686,6 +716,7 @@ const I18N = {
     res_allow:'Permitido', res_deny:'Denegado', res_timeout:'Tiempo agotado (denegado)',
     attached:'Conectado a {n}', session_ended:'Sesión terminada', new_chat:'Nuevo chat',
     login_prompt:'Introduce tu clave de acceso de PocketClaude',
+    login_go:'Entrar', login_bad:'Clave incorrecta, inténtalo de nuevo',
     push_enable:'Activar notificaciones',
     ios_install:'iPhone: Compartir → Añadir a pantalla de inicio, y ábrelo desde ahí para activar las notificaciones',
     ios_alert:'En iPhone, añade este sitio a tu pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde ahí para activar las notificaciones.',
@@ -709,6 +740,7 @@ const I18N = {
     res_allow:'Autorisé', res_deny:'Refusé', res_timeout:'Expiré (refus auto)',
     attached:'Connecté à {n}', session_ended:'Session terminée', new_chat:'Nouveau chat',
     login_prompt:'Entrez votre clé de connexion PocketClaude',
+    login_go:'Connexion', login_bad:'Clé incorrecte, réessayez',
     push_enable:'Activer les notifications',
     ios_install:'iPhone : Partager → Sur l\'écran d\'accueil, puis ouvrez depuis là pour activer les notifications',
     ios_alert:'Sur iPhone, ajoutez ce site à votre écran d\'accueil (Partager → Sur l\'écran d\'accueil) et ouvrez-le depuis là pour activer les notifications.',
@@ -732,6 +764,7 @@ const I18N = {
     res_allow:'Erlaubt', res_deny:'Abgelehnt', res_timeout:'Zeitüberschreitung (abgelehnt)',
     attached:'Mit {n} verbunden', session_ended:'Sitzung beendet', new_chat:'Neuer Chat',
     login_prompt:'PocketClaude-Anmeldeschlüssel eingeben',
+    login_go:'Anmelden', login_bad:'Falscher Schlüssel — bitte erneut versuchen',
     push_enable:'Benachrichtigungen aktivieren',
     ios_install:'iPhone: Teilen → Zum Home-Bildschirm, dann von dort öffnen, um Push zu aktivieren',
     ios_alert:'Auf dem iPhone diese Seite zuerst zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen, um Push-Benachrichtigungen zu aktivieren.',
@@ -1696,17 +1729,34 @@ async function tryAuth(token) {
     return r.ok;
   } catch { return false; }
 }
+// In-page key entry — window.prompt() is silently suppressed in PWA/standalone
+// modes, which left new devices staring at a blank dark screen.
+function askKey(errMsg) {
+  return new Promise(res => {
+    const input = $('login-key');
+    $('login-modal').classList.add('open');
+    $('login-err').textContent = errMsg || '';
+    input.value = '';
+    setTimeout(() => input.focus(), 60);
+    const submit = () => { const v = input.value.trim(); if (v) res(v); };
+    $('login-go').onclick = submit;
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+  });
+}
 async function ensureAuth() {
   let token = '';
   try { token = localStorage.getItem('authToken') || ''; } catch {}
   if (await tryAuth(token)) return true;   // stored key or still-valid cookie
+  let err = '';
   for (;;) {
-    const t = prompt(T('login_prompt'));
-    if (t == null) { setConn('conn_unauth'); return false; }
-    if (await tryAuth(t.trim())) {
-      try { localStorage.setItem('authToken', t.trim()); } catch {}
+    const t = await askKey(err);
+    if (await tryAuth(t)) {
+      try { localStorage.setItem('authToken', t); } catch {}
+      $('login-modal').classList.remove('open');
       return true;
     }
+    err = T('login_bad');
+    $('login-err').textContent = err;
   }
 }
 
@@ -1730,6 +1780,9 @@ function applyLang(l) {
   setOpts('model-sel', { default:'model_default' });
   setOpts('effort-sel', { default:'effort_default', low:'effort_low', medium:'effort_medium', high:'effort_high', xhigh:'effort_xhigh', max:'effort_max' });
   if (pushMode) showPushBar(pushMode);
+  // login overlay labels
+  $('login-sub').textContent = T('login_prompt');
+  $('login-go').textContent = T('login_go');
   // advanced-options modal labels
   $('adv-title-t').textContent = T('adv');
   const advMap = { 'l-fork':'adv_fork','d-fork':'adv_fork_d','l-wt':'adv_wt','d-wt':'adv_wt_d','l-ro':'adv_ro','d-ro':'adv_ro_d','l-cont':'adv_cont','d-cont':'adv_cont_d','l-name':'adv_name','l-dirs':'adv_dirs','l-sys':'adv_sys','l-fb':'adv_fb' };
