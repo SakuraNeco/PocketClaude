@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# secrets & runtime state (each install generates its own)
+.env
+.vapid.json
+.push-subs.json
+.mcp-permission.json
+.auth-token
+
+# user uploads & logs
+public/uploads/
+*.log
+
+# local tooling / editor
+.claude/
+CLAUDE.local.md
+.DS_Store
+Thumbs.db

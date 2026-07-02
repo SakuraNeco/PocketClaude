@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0d0d0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>PocketClaude</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0d0d0d;--bg1:#141414;--bg2:#1c1c1e;--bg3:#242426;--bg4:#2c2c2e;
+  --border:#2a2a2c;--border2:#38383a;
+  --text:#f0f0ee;--text2:#aeaeb2;--text3:#636366;
+  --blue:#4f8ef7;--blue-dim:#1c2f52;
+  --green:#32d74b;--red:#ff453a;--amber:#ffd60a;--amber-dim:#3a2e00;
+  --radius:16px;
+  --sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px);
+}
+html{height:100%;overflow:hidden;position:fixed;width:100%;}
+body{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--app-h,100dvh);overflow:hidden;background:var(--bg);
+  color:var(--text);font-family:-apple-system,system-ui,sans-serif;
+  display:flex;flex-direction:column;padding-top:var(--st);
+}
+
+/* ── Nav ── */
+#nav{
+  height:52px;display:flex;align-items:center;gap:10px;
+  padding:0 16px;background:rgba(20,20,20,.95);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;}
+.sdot.live{background:var(--green);box-shadow:0 0 0 3px rgba(50,215,75,.15);}
+#nav-picker{
+  display:flex;align-items:center;gap:8px;flex:1;min-width:0;
+  background:transparent;border:none;color:var(--text);cursor:pointer;
+  padding:6px 8px;margin-left:-8px;border-radius:10px;transition:background .12s;
+}
+#nav-picker:active{background:var(--bg2);}
+#nav-name{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.02em;color:var(--text);}
+#nav-chev{font-size:15px;color:var(--text3);flex-shrink:0;transition:transform .2s;}
+#nav-badge{display:none;min-width:18px;height:18px;background:var(--red);color:#fff;border-radius:9px;font-size:10px;font-weight:700;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
+#nav-badge.on{display:flex;}
+#nav-conn{font-size:11px;color:var(--text3);flex-shrink:0;}
+/* desktop: sidebar handles switching, hide the picker chevron + badge */
+@media(min-width:640px){#nav-chev,#nav-badge{display:none!important;}#nav-picker{pointer-events:none;}}
+#btn-stop{display:none;align-items:center;gap:5px;background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.3);color:var(--red);border-radius:8px;padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;}
+
+/* ── Layout ── */
+#wrap{display:flex;flex:1;overflow:hidden;min-height:0;}
+
+/* ── Sidebar ── */
+#sidebar{width:216px;background:var(--bg1);border-right:1px solid var(--border);display:none;flex-direction:column;flex-shrink:0;}
+#sb-head{padding:16px 14px 8px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);}
+#sb-list{flex:1;overflow-y:auto;padding:0 8px 12px;}
+.srow{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background .12s;}
+.srow:hover{background:var(--bg2);}
+.srow.on{background:var(--bg2);}
+.srow.on .sname{color:var(--text);}
+.sdot2{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.sdot2.dead{background:var(--text3);}
+.sinfo{flex:1;min-width:0;}
+.sname{font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ssub{font-size:10px;color:var(--text3);margin-top:1px;}
+.sbadge{min-width:18px;height:18px;background:var(--red);color:#fff;border-radius:9px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px;}
+.sbadge.on{display:flex;}
+@media(min-width:640px){#sidebar{display:flex;}#tabs{display:none!important;}}
+@media(max-width:639px){#sidebar{display:none!important;}}
+
+/* ── Chat ── */
+#panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#msgs{flex:1;overflow-y:auto;padding:20px 0 8px;display:flex;flex-direction:column;-webkit-overflow-scrolling:touch;}
+
+/* User bubble — RIGHT */
+.row-user{display:flex;justify-content:flex-end;padding:3px 14px;}
+.bub-user{
+  background:var(--blue);color:#fff;
+  border-radius:20px 20px 5px 20px;
+  padding:10px 15px;max-width:78%;
+  font-size:15px;line-height:1.55;word-break:break-word;white-space:pre-wrap;
+}
+
+/* Claude bubble — LEFT */
+.row-claude{display:flex;align-items:flex-start;gap:10px;padding:3px 14px;}
+.avatar{
+  width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,#4f8ef7,#b57cf5);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:#fff;font-weight:700;flex-shrink:0;margin-top:2px;
+}
+.bub-claude{
+  background:var(--bg2);
+  border-radius:5px 20px 20px 20px;
+  padding:12px 16px;max-width:78%;
+  font-size:15px;line-height:1.7;word-break:break-word;
+  border:1px solid var(--border);
+}
+
+/* Markdown inside Claude bubble */
+.bub-claude h1,.bub-claude h2,.bub-claude h3,.bub-claude h4{color:var(--text);font-weight:600;margin:.9em 0 .4em;line-height:1.3;}
+.bub-claude h1{font-size:1.3em;} .bub-claude h2{font-size:1.15em;} .bub-claude h3{font-size:1.05em;}
+.bub-claude p{margin:.5em 0;color:var(--text);}
+.bub-claude p:first-child{margin-top:0;} .bub-claude p:last-child{margin-bottom:0;}
+.bub-claude ul,.bub-claude ol{padding-left:1.4em;margin:.5em 0;}
+.bub-claude li{margin:.25em 0;color:var(--text);}
+.bub-claude strong{font-weight:600;color:var(--text);}
+.bub-claude em{font-style:italic;color:var(--text2);}
+.bub-claude a{color:var(--blue);text-decoration:none;}
+.bub-claude a:hover{text-decoration:underline;}
+.bub-claude blockquote{border-left:3px solid var(--border2);margin:.5em 0;padding:.3em .8em;color:var(--text2);}
+.bub-claude hr{border:none;border-top:1px solid var(--border);margin:.8em 0;}
+.bub-claude table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em;}
+.bub-claude th,.bub-claude td{border:1px solid var(--border2);padding:6px 10px;text-align:left;}
+.bub-claude th{background:var(--bg3);font-weight:600;color:var(--text);}
+.bub-claude td{color:var(--text2);}
+
+/* Inline code */
+.bub-claude code:not(pre code){
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:5px;padding:1px 5px;
+  font-family:ui-monospace,'SF Mono',monospace;font-size:.85em;color:#e5c07b;
+}
+
+/* Code block */
+.code-wrap{position:relative;margin:.6em 0;border-radius:10px;overflow:hidden;background:#161b22;border:1px solid var(--border2);}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--border);}
+.code-lang{font-size:11px;color:var(--text3);font-family:ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;}
+.code-copy{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;transition:all .15s;}
+.code-copy:hover{border-color:var(--text2);color:var(--text2);}
+.code-copy.done{border-color:var(--green);color:var(--green);}
+.code-wrap pre{margin:0;padding:14px 16px;overflow-x:auto;}
+.code-wrap pre code{font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;background:transparent;border:none;padding:0;color:inherit;}
+
+/* Lazy-load placeholder */
+.loading-note{margin:auto;color:var(--text3);font-size:13px;padding:30px;text-align:center;}
+
+/* Generated media (audio/video/image/file) in a Claude bubble */
+.media-box{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+.media-card{background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.media-name{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);font-family:ui-monospace,monospace;word-break:break-all;line-height:1.4;}
+.media-name i{color:var(--blue);flex-shrink:0;font-size:15px;}
+.media-card audio{width:100%;height:38px;}
+.media-card video{width:100%;max-height:300px;border-radius:8px;background:#000;}
+.media-img{max-width:100%;border-radius:8px;display:block;}
+.media-dl{font-size:12px;color:var(--blue);text-decoration:none;align-self:flex-start;}
+.media-file{display:flex;align-items:center;gap:6px;color:var(--blue);text-decoration:none;font-size:13px;word-break:break-all;}
+.media-file i{font-size:16px;flex-shrink:0;}
+.dev-link{display:inline-flex;align-items:center;gap:8px;background:var(--blue-dim);border:1px solid rgba(79,142,247,.4);color:var(--blue);border-radius:10px;padding:10px 15px;font-size:13px;font-weight:600;text-decoration:none;align-self:flex-start;}
+.dev-link i{font-size:17px;}
+.dev-link:active{background:var(--bg3);}
+
+/* Plan card (ExitPlanMode) */
+.plan-card{background:var(--bg2);border:1px solid var(--border2);border-left:3px solid var(--blue);border-radius:12px;overflow:hidden;max-width:100%;}
+.plan-head{display:flex;align-items:center;gap:7px;padding:10px 14px;background:rgba(79,142,247,.08);font-size:13px;font-weight:700;color:var(--blue);border-bottom:1px solid var(--border);}
+.plan-body{padding:6px 15px 12px;font-size:14px;line-height:1.65;color:var(--text);}
+.plan-body h1,.plan-body h2,.plan-body h3{font-size:1.05em;margin:.7em 0 .3em;color:var(--text);}
+.plan-body ul,.plan-body ol{padding-left:1.3em;margin:.4em 0;} .plan-body li{margin:.2em 0;}
+.plan-body p{margin:.4em 0;} .plan-body code{background:var(--bg3);border-radius:4px;padding:1px 5px;font-size:.85em;color:#e5c07b;}
+
+/* Todo card (TodoWrite) */
+.todo-card{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:10px 12px;max-width:100%;}
+.todo-head{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px;}
+.todo-head span{color:var(--text3);font-weight:500;font-size:12px;}
+.todo-item{display:flex;align-items:flex-start;gap:8px;padding:3px 0;font-size:13.5px;color:var(--text2);line-height:1.4;}
+.todo-item i{font-size:16px;flex-shrink:0;margin-top:1px;color:var(--text3);}
+.todo-item.completed{color:var(--text3);} .todo-item.completed i{color:var(--green);}
+.todo-item.completed span{text-decoration:line-through;}
+.todo-item.in_progress{color:var(--text);font-weight:500;} .todo-item.in_progress i{color:var(--amber);}
+
+/* Question card (AskUserQuestion) */
+.ask-card{background:var(--bg2);border:1px solid var(--border2);border-left:3px solid var(--amber);border-radius:12px;padding:12px 14px;max-width:100%;}
+.ask-head{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--amber);margin-bottom:10px;}
+.ask-qtext{font-size:14px;color:var(--text);font-weight:500;margin-bottom:9px;line-height:1.5;}
+.ask-opts{display:flex;flex-direction:column;gap:7px;}
+.ask-opt{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 13px;cursor:pointer;transition:background .12s,border-color .12s;color:var(--text);font-family:inherit;}
+.ask-opt:active{background:var(--bg4);border-color:var(--blue);}
+.ask-opt-label{font-size:14px;font-weight:600;}
+.ask-opt-desc{font-size:12px;color:var(--text3);line-height:1.4;}
+.ask-q + .ask-q{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+
+/* Permission request card (interactive approval) */
+.perm-card{background:var(--bg2);border:1px solid var(--red);border-left:3px solid var(--red);border-radius:12px;padding:12px 14px;max-width:100%;}
+.perm-head{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text);margin-bottom:8px;line-height:1.4;}
+.perm-head i{color:var(--red);font-size:17px;flex-shrink:0;} .perm-head b{color:var(--amber);font-family:ui-monospace,monospace;}
+.perm-input{background:#161b22;border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:12px;font-family:ui-monospace,monospace;color:var(--text2);white-space:pre;overflow:auto;max-height:160px;margin-bottom:10px;}
+.perm-btns{display:flex;gap:8px;}
+.perm-allow,.perm-deny{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+.perm-allow{background:var(--green);color:#062611;} .perm-allow:active{opacity:.85;}
+.perm-deny{background:var(--bg3);color:var(--red);border:1px solid rgba(255,69,58,.4);} .perm-deny:active{background:var(--bg4);}
+.perm-result{margin-top:8px;font-size:13px;color:var(--text3);text-align:center;}
+
+/* Tool block — chip + collapsible body, one self-contained card */
+.row-tool{padding:4px 14px 4px 54px;}
+.tool-block{max-width:100%;min-width:0;}
+.tool-chip{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:8px;padding:5px 11px;cursor:pointer;
+  font-size:12px;font-family:ui-monospace,monospace;color:var(--amber);
+  transition:background .12s;user-select:none;
+}
+.tool-chip:hover{background:var(--bg3);}
+.tool-chip i{font-size:13px;flex-shrink:0;}
+.tool-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tool-chev{margin-left:2px;font-size:13px;color:var(--text3);flex-shrink:0;transition:transform .2s;}
+.tool-chip.open .tool-chev{transform:rotate(90deg);}
+.tool-body{
+  display:none;margin-top:5px;padding:10px 12px;
+  background:#161b22;border:1px solid var(--border2);border-radius:8px;
+  font-size:12px;line-height:1.5;color:var(--text2);
+  font-family:ui-monospace,'SF Mono',monospace;
+  white-space:pre;overflow:auto;
+  max-height:300px;max-width:100%;
+}
+.tool-body.open{display:block;}
+
+/* Typing indicator */
+.row-typing{display:flex;align-items:flex-start;gap:10px;padding:3px 14px;}
+.typing-dots{display:flex;gap:4px;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:5px 20px 20px 20px;padding:14px 18px;}
+.typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--text3);animation:bounce .9s infinite;}
+.typing-dots span:nth-child(2){animation-delay:.2s;}
+.typing-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-5px);}}
+
+/* Sys divider */
+.row-sys{display:flex;align-items:center;gap:8px;padding:8px 14px;margin:4px 0;}
+.row-sys::before,.row-sys::after{content:'';flex:1;height:1px;background:var(--border);}
+.row-sys span{font-size:11px;color:var(--text3);white-space:nowrap;}
+
+/* Push bar */
+#push-bar{display:none;align-items:center;justify-content:center;gap:6px;padding:10px;background:rgba(50,215,75,.06);border-top:1px solid rgba(50,215,75,.15);font-size:13px;color:var(--green);cursor:pointer;flex-shrink:0;font-weight:500;}
+
+/* ── Input ── */
+#input-area{background:var(--bg1);border-top:1px solid var(--border);padding:12px 14px;padding-bottom:calc(12px + var(--sb));flex-shrink:0;}
+#send-target{
+  display:flex;align-items:center;gap:6px;margin-bottom:9px;padding:6px 11px;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:10px;
+  font-size:12px;color:var(--text3);cursor:pointer;user-select:none;
+  transition:background .12s;
+}
+#send-target:active{background:var(--bg3);}
+#send-target i{font-size:14px;flex-shrink:0;}
+#send-target .ti-send{color:var(--blue);}
+#send-target strong{color:var(--text);font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;}
+#target-chev{color:var(--text3);}
+#input-row{display:flex;gap:8px;align-items:flex-end;}
+#btn-attach{
+  width:44px;height:44px;border-radius:50%;background:var(--bg2);
+  color:var(--text2);border:1.5px solid var(--border2);font-size:21px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:background .15s,transform .12s;
+}
+#btn-attach:active{transform:scale(.91);background:var(--bg3);}
+#prompt{
+  flex:1;background:var(--bg2);border:1.5px solid var(--border2);
+  color:var(--text);border-radius:22px;padding:12px 18px;
+  font-size:16px;resize:none;max-height:140px;font-family:inherit;line-height:1.45;
+}
+#prompt:focus{outline:none;border-color:rgba(79,142,247,.6);box-shadow:0 0 0 4px rgba(79,142,247,.1);}
+#prompt::placeholder{color:var(--text3);}
+#btn-send{
+  width:44px;height:44px;border-radius:50%;background:var(--blue);
+  color:#fff;border:none;font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:opacity .15s,transform .12s,background .15s;
+}
+#btn-send:disabled{background:var(--bg3);color:var(--text3);cursor:default;}
+#btn-send:not(:disabled):active{transform:scale(.91);}
+#opts-row{display:flex;align-items:center;gap:10px;margin-top:9px;padding:0 4px;}
+.opt{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);min-width:0;}
+.opt i{font-size:13px;flex-shrink:0;}
+#perm-mode,#model-sel{
+  background:var(--bg2);border:1px solid var(--border2);color:var(--text2);
+  border-radius:8px;padding:4px 26px 4px 9px;font-size:12px;font-family:inherit;
+  cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;max-width:42vw;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aeaeb2' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 8px center;
+}
+#perm-mode:focus,#model-sel:focus{border-color:rgba(79,142,247,.6);}
+.cwd-only{flex:1;}
+#cwd-input{background:transparent;border:none;color:var(--text3);font-size:11px;font-family:ui-monospace,monospace;flex:1;min-width:0;outline:none;}
+#cwd-input::placeholder{color:var(--text3);}
+@media(max-width:639px){.cwd-only{display:none;}}
+
+/* Image previews */
+#img-previews{display:flex;flex-wrap:wrap;gap:8px;padding:8px 4px 0;}
+.img-thumb{position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--border2);flex-shrink:0;}
+.img-thumb img{width:100%;height:100%;object-fit:cover;}
+.img-remove{position:absolute;top:3px;right:3px;width:18px;height:18px;background:rgba(0,0,0,.7);border:none;border-radius:50%;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+
+/* ── Session sheet (mobile) ── */
+#sheet-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;
+  opacity:0;pointer-events:none;transition:opacity .22s;
+}
+#sheet-bg.open{opacity:1;pointer-events:auto;}
+#sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:51;
+  background:var(--bg1);border-top:1px solid var(--border2);
+  border-radius:20px 20px 0 0;
+  transform:translateY(110%);transition:transform .28s cubic-bezier(.32,.72,0,1);
+  max-height:72vh;display:flex;flex-direction:column;
+  padding-bottom:calc(8px + var(--sb));
+  box-shadow:0 -8px 40px rgba(0,0,0,.5);
+}
+#sheet.open{transform:translateY(0);}
+#sheet-handle{width:38px;height:4px;border-radius:2px;background:var(--border2);margin:10px auto 4px;flex-shrink:0;}
+#sheet-head{padding:6px 18px 10px;font-size:13px;font-weight:700;color:var(--text2);letter-spacing:.02em;}
+#sheet-list{overflow-y:auto;padding:0 10px 8px;}
+#sheet-empty{font-size:13px;color:var(--text3);padding:20px;text-align:center;}
+.sheet-row{display:flex;align-items:center;gap:11px;padding:13px 12px;border-radius:12px;cursor:pointer;transition:background .12s;}
+.sheet-row:active{background:var(--bg2);}
+.sheet-row.on{background:var(--bg2);}
+.sheet-row .sdot2{width:8px;height:8px;}
+.sheet-row .sinfo{flex:1;min-width:0;}
+.sheet-row .sname{font-size:15px;color:var(--text);}
+.sheet-row .ssub{font-size:11px;color:var(--text3);margin-top:2px;}
+@media(min-width:640px){#sheet,#sheet-bg{display:none!important;}}
+
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <button id="nav-picker" onclick="openSheet()">
+    <div class="sdot" id="conn-dot"></div>
+    <span id="nav-name">PocketClaude</span>
+    <i class="ti ti-chevron-down" id="nav-chev"></i>
+    <span id="nav-badge"></span>
+  </button>
+  <span id="nav-conn">連線中...</span>
+  <button id="btn-stop" onclick="stopSpawn()"><i class="ti ti-player-stop-filled"></i> 停止</button>
+</div>
+
+<div id="wrap">
+  <div id="sidebar">
+    <div id="sb-head">Sessions</div>
+    <div id="sb-list"></div>
+  </div>
+  <div id="panel">
+    <div id="msgs"></div>
+    <div id="push-bar" onclick="subscribePush()"><i class="ti ti-bell"></i> 啟用推播通知</div>
+    <div id="input-area">
+      <div id="send-target" onclick="openSheet()">
+        <i class="ti ti-send" aria-hidden="true"></i>
+        <span>傳送至</span>
+        <strong id="target-name">—</strong>
+        <i class="ti ti-selector" id="target-chev" aria-hidden="true"></i>
+      </div>
+      <div id="input-row">
+        <button id="btn-attach" onclick="document.getElementById('file-input').click()" aria-label="附加圖片"><i class="ti ti-photo-plus"></i></button>
+        <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+        <textarea id="prompt" rows="1" placeholder="輸入訊息..."></textarea>
+        <button id="btn-send" onclick="send()" aria-label="送出"><i class="ti ti-arrow-up"></i></button>
+      </div>
+      <div id="img-previews"></div>
+      <div id="opts-row">
+        <label class="opt" title="權限模式">
+          <i class="ti ti-shield-half" aria-hidden="true"></i>
+          <select id="perm-mode">
+            <option value="interactive">逐項核准</option>
+            <option value="acceptEdits">自動編輯</option>
+            <option value="bypassPermissions">完全自動</option>
+            <option value="plan">規劃模式</option>
+          </select>
+        </label>
+        <label class="opt" title="模型">
+          <i class="ti ti-cpu" aria-hidden="true"></i>
+          <select id="model-sel">
+            <option value="default">預設模型</option>
+            <option value="fable">Fable 5</option>
+            <option value="opus">Opus</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="haiku">Haiku</option>
+          </select>
+        </label>
+        <label class="opt cwd-only" title="工作目錄">
+          <i class="ti ti-folder" aria-hidden="true"></i>
+          <input id="cwd-input" placeholder="留空用預設" spellcheck="false"/>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="sheet-bg" onclick="closeSheet()"></div>
+<div id="sheet">
+  <div id="sheet-handle"></div>
+  <div id="sheet-head">Sessions</div>
+  <div id="sheet-list"><div id="sheet-empty">偵測 session 中…</div></div>
+</div>
+
+<script>
+// ── Marked setup ──
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  highlight: null,
+});
+const renderer = new marked.Renderer();
+let _toolIdx = 0;
+renderer.code = function(code, lang) {
+  const id = 'cb' + (_toolIdx++);
+  const hl = lang && hljs.getLanguage(lang)
+    ? hljs.highlight(code, {language: lang}).value
+    : hljs.highlightAuto(code).value;
+  const label = lang || 'code';
+  // no inline onclick — DOMPurify strips event handlers; copy uses a delegated listener (data-cb)
+  return `<div class="code-wrap"><div class="code-header"><span class="code-lang">${label}</span><button class="code-copy" data-cb="${id}"><i class="ti ti-copy"></i> 複製</button></div><pre><code id="${id}" class="hljs">${hl}</code></pre></div>`;
+};
+marked.use({ renderer });
+
+// Clipboard API rejects in plenty of real situations (iOS focus/permission
+// quirks, non-secure origins) — fall back to a hidden textarea + execCommand,
+// and always show success/failure so the button never feels dead.
+async function copyCode(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const text = el.textContent;
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+      ta.remove();
+    } catch {}
+  }
+  btn.innerHTML = ok ? '<i class="ti ti-check"></i> 已複製' : '<i class="ti ti-x"></i> 複製失敗';
+  btn.classList.toggle('done', ok);
+  setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> 複製'; btn.classList.remove('done'); }, 2000);
+}
+
+// Markdown → HTML, ALWAYS sanitized: transcripts contain untrusted text
+// (web pages Claude read, file contents) and this PWA can send
+// bypassPermissions commands — XSS here would be remote code execution.
+function renderMd(text) {
+  const html = marked.parse(text || '');
+  return window.DOMPurify ? DOMPurify.sanitize(html) : esc(text || '');
+}
+
+// ── Image paste ──
+let pendingImages = []; // [{dataUrl, file}]
+
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (!item.type.startsWith('image/')) continue;
+    const file = item.getAsFile();
+    const reader = new FileReader();
+    reader.onload = ev => addImagePreview(ev.target.result, file);
+    reader.readAsDataURL(file);
+  }
+});
+
+function addImagePreview(dataUrl, file) {
+  pendingImages.push({ dataUrl, file });
+  const box = $('img-previews');
+  const idx = pendingImages.length - 1;
+  const wrap = document.createElement('div'); wrap.className = 'img-thumb'; wrap.id = 'thumb-'+idx;
+  wrap.innerHTML = `<img src="${dataUrl}"><button class="img-remove" onclick="removeImg(${idx})">✕</button>`;
+  box.appendChild(wrap);
+}
+
+function removeImg(idx) {
+  pendingImages[idx] = null;
+  $('thumb-'+idx)?.remove();
+}
+
+async function uploadImages() {
+  const paths = [];
+  for (const img of pendingImages) {
+    if (!img) continue;
+    const fd = new FormData(); fd.append('image', img.file);
+    const res = await fetch('/upload-image', { method: 'POST', body: fd });
+    const { path } = await res.json();
+    paths.push(path);
+  }
+  pendingImages = [];
+  $('img-previews').innerHTML = '';
+  return paths;
+}
+
+// ── State ──
+const S = {}; let aid = null, spawning = false, ws;
+const $ = id => document.getElementById(id);
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const base = p => p ? p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p : '';
+const SKIP = /^<(task-notification|system-reminder|system|command-name)/;
+
+// ── Sessions ──
+function upsert(id, name, cwd, kind, lastModified) {
+  if (!S[id]) {
+    S[id] = { name: name||id.slice(0,8), cwd: cwd||'', kind: kind||'', msgs: [], unread: 0, alive: true, mtime: lastModified||0 };
+    addRow(id); addSheetRow(id);
+    $('sheet-empty')?.remove();
+    if (!aid) pick(id);
+  } else {
+    if (name) S[id].name = name;
+    if (cwd) S[id].cwd = cwd;
+    if (lastModified) S[id].mtime = lastModified;
+    refreshLabel(id);
+  }
+}
+
+// Choose which session is active on load: the one you last used (if still open),
+// otherwise the most recently active conversation — never just "the first file".
+function selectBestSession(list, saved) {
+  if (!list || !list.length) return;
+  let target = (saved && S[saved]) ? saved : null;
+  if (!target) {
+    target = list.slice().sort((a,b)=>(b.lastModified||0)-(a.lastModified||0))[0].sessionId;
+  }
+  if (target && S[target]) pick(target);
+}
+
+function addRow(id) {
+  const s = S[id], el = document.createElement('div');
+  el.className = 'srow'; el.id = 'sr-'+id;
+  el.innerHTML = `<div class="sdot2 live" id="rdot-${id}"></div><div class="sinfo"><div class="sname" id="rname-${id}">${esc(s.name)}</div><div class="ssub" id="rsub-${id}">${esc(s.kind)}</div></div><div class="sbadge" id="rbadge-${id}"></div>`;
+  el.onclick = () => pick(id);
+  $('sb-list').appendChild(el);
+}
+
+function addSheetRow(id) {
+  const s = S[id], el = document.createElement('div');
+  el.className = 'srow sheet-row'; el.id = 'sh-'+id;
+  el.innerHTML = `<div class="sdot2 live" id="hdot-${id}"></div><div class="sinfo"><div class="sname" id="hname-${id}">${esc(s.name)}</div><div class="ssub" id="hsub-${id}">${esc(s.kind||'session')}</div></div><div class="sbadge" id="hbadge-${id}"></div>`;
+  el.onclick = () => { pick(id); closeSheet(); };
+  $('sheet-list').appendChild(el);
+}
+
+function refreshLabel(id) {
+  const s = S[id];
+  [$('rname-'+id), $('hname-'+id)].forEach(el => el && (el.textContent = s.name));
+  [$('rsub-'+id), $('hsub-'+id)].forEach(el => el && (el.textContent = s.kind||'session'));
+  if (id === aid) $('nav-name').textContent = s.name;
+}
+
+function pick(id) {
+  if (aid) { $('sr-'+aid)?.classList.remove('on'); $('sh-'+aid)?.classList.remove('on'); }
+  aid = id;
+  $('sr-'+id)?.classList.add('on'); $('sh-'+id)?.classList.add('on');
+  const s = S[id]; if (!s) return;
+  try { localStorage.setItem('lastSession', id); } catch {}
+  s.unread = 0; clrBadge(id); updateNavBadge();
+  $('nav-name').textContent = s.name;
+  $('target-name').textContent = s.name;
+  if (!s.loaded && !s.loading) requestHistory(id);   // lazy-load this conversation
+  renderAll(id);
+}
+
+function requestHistory(id) {
+  if (!S[id]) return;
+  S[id].loading = true;
+  try { ws?.send(JSON.stringify({ type: 'get_history', sessionId: id })); } catch {}
+}
+
+function clrBadge(id) {
+  [$('rbadge-'+id), $('hbadge-'+id)].forEach(el => el && (el.textContent='', el.classList.remove('on')));
+}
+
+function bump(id) {
+  if (id === aid) return;
+  const s = S[id]; if (!s) return;
+  s.unread++;
+  [$('rbadge-'+id), $('hbadge-'+id)].forEach(el => el && (el.textContent=s.unread, el.classList.add('on')));
+  updateNavBadge();
+}
+
+function updateNavBadge() {
+  let total = 0;
+  for (const k in S) if (k !== aid) total += (S[k].unread || 0);
+  const b = $('nav-badge');
+  if (total > 0) { b.textContent = total > 99 ? '99+' : total; b.classList.add('on'); }
+  else b.classList.remove('on');
+}
+
+function killSess(id) {
+  if (!S[id]) return;
+  S[id].alive = false;
+  $('rdot-'+id)?.classList.remove('live');
+  $('hdot-'+id)?.classList.remove('live');
+  [$('rsub-'+id), $('hsub-'+id)].forEach(el => el && (el.textContent = '已結束'));
+}
+
+// ── Session sheet ──
+function openSheet() {
+  if (innerWidth >= 640) return;       // desktop uses the sidebar
+  $('sheet-bg').classList.add('open');
+  $('sheet').classList.add('open');
+  $('nav-chev').style.transform = 'rotate(180deg)';
+}
+function closeSheet() {
+  $('sheet-bg').classList.remove('open');
+  $('sheet').classList.remove('open');
+  $('nav-chev').style.transform = '';
+}
+
+// ── Render ──
+const msgs = $('msgs');
+let typingEl = null;
+
+// Delegated copy-button handler (code blocks come from sanitized markdown,
+// which can't carry inline onclick).
+msgs.addEventListener('click', e => {
+  const btn = e.target.closest('.code-copy');
+  if (btn && btn.dataset.cb) copyCode(btn.dataset.cb, btn);
+});
+
+function showTyping() {
+  if (typingEl) return;
+  typingEl = document.createElement('div');
+  typingEl.className = 'row-typing';
+  typingEl.innerHTML = `<div class="avatar">C</div><div class="typing-dots"><span></span><span></span><span></span></div>`;
+  msgs.appendChild(typingEl);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() {
+  if (typingEl) { typingEl.remove(); typingEl = null; }
+}
+
+let bulkLoading = false;
+function renderAll(id) {
+  msgs.innerHTML = ''; hideTyping();
+  const s = S[id];
+  if (s && !s.loaded && s.loading) { msgs.innerHTML = '<div class="loading-note">載入對話中…</div>'; return; }
+  for (const m of s?.msgs || []) appendEl(buildMsg(m));
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function push(id, m) {
+  S[id]?.msgs.push(m);
+  if (bulkLoading) return;                 // building history in bulk → render once at the end
+  if (id === aid) { appendEl(buildMsg(m)); }
+  else bump(id);
+}
+
+function appendEl(el) {
+  if (!el) return;
+  hideTyping();
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// Format tool input readably: strings keep real newlines, objects pretty-printed
+function prettyToolInput(input) {
+  if (input == null) return '';
+  if (typeof input !== 'object') return String(input);
+  const parts = [];
+  for (const [k, v] of Object.entries(input)) {
+    const val = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+    parts.push(val.includes('\n') ? `${k}:\n${val}` : `${k}: ${val}`);
+  }
+  return parts.join('\n\n');
+}
+
+// Pull [圖片: /uploads/xxx] markers out of text → real images, clean text
+function extractImages(text) {
+  const images = [];
+  const clean = (text || '')
+    .replace(/\n?\[圖片:\s*(\/uploads\/[^\]]+)\]/g, (_, p) => { images.push(p.trim()); return ''; })
+    .trim();
+  return { text: clean, images };
+}
+
+// A user line from the transcript that exactly matches something we just sent
+// optimistically — consume it once so it isn't shown twice.
+function consumeEcho(id, text) {
+  const arr = S[id]?.pendingEcho;
+  if (!arr || !arr.length) return false;
+  const i = arr.indexOf(text);
+  if (i === -1) return false;
+  arr.splice(i, 1);
+  return true;
+}
+
+// Detect absolute file paths to media/docs in Claude's text → inline players.
+const MEDIA_RE = /(?:[A-Za-z]:\\|\/)[^\n\r"'`)*]*?\.(mp3|wav|m4a|aac|ogg|oga|flac|opus|mp4|mov|webm|png|jpe?g|gif|webp|svg|pdf)\b/gi;
+function extractMedia(text) {
+  const t = text || '', out = [], seen = new Set(); let m;
+  MEDIA_RE.lastIndex = 0;
+  while ((m = MEDIA_RE.exec(t)) && out.length < 8) {
+    const before = t.slice(Math.max(0, m.index - 8), m.index);
+    const p = m[0].trim().replace(/[.,)]+$/, '');
+    if (/https?:/i.test(before) || p.includes('://') || seen.has(p)) continue;  // skip URLs
+    seen.add(p);
+    const ext = m[1].toLowerCase();
+    const kind = /^(mp3|wav|m4a|aac|ogg|oga|flac|opus)$/.test(ext) ? 'audio'
+      : /^(mp4|mov|webm)$/.test(ext) ? 'video'
+      : /^(png|jpe?g|gif|webp|svg)$/.test(ext) ? 'image' : 'file';
+    out.push({ path: p, kind });
+  }
+  return out;
+}
+function mediaEl(list) {
+  const wrap = document.createElement('div'); wrap.className = 'media-box';
+  const base = S[aid]?.cwd ? '&base=' + encodeURIComponent(S[aid].cwd) : '';
+  for (const it of list) {
+    const url = '/media?path=' + encodeURIComponent(it.path) + base;
+    const name = it.path.replace(/\\/g, '/').split('/').pop();
+    const card = document.createElement('div'); card.className = 'media-card';
+    if (it.kind === 'audio')
+      card.innerHTML = `<div class="media-name"><i class="ti ti-music"></i>${esc(name)}</div><audio controls preload="none" src="${url}"></audio><a class="media-dl" href="${url}&download=1">下載</a>`;
+    else if (it.kind === 'video')
+      card.innerHTML = `<div class="media-name"><i class="ti ti-video"></i>${esc(name)}</div><video controls playsinline preload="none" src="${url}"></video><a class="media-dl" href="${url}&download=1">下載</a>`;
+    else if (it.kind === 'image')
+      card.innerHTML = `<img class="media-img" src="${url}" loading="lazy"><a class="media-dl" href="${url}&download=1">${esc(name)} ↓</a>`;
+    else
+      card.innerHTML = `<a class="media-file" href="${url}&download=1"><i class="ti ti-file-download"></i>${esc(name)}</a>`;
+    wrap.appendChild(card);
+  }
+  return wrap;
+}
+
+// Detect local dev-server URLs (http://localhost:PORT) → a button that views them
+// through the server's reverse proxy so the phone can reach them.
+const DEV_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1)(?::(\d+))?(\/[^\s"'`)]*)?/gi;
+function extractDevUrls(text) {
+  const out = [], seen = new Set(); let m;
+  DEV_URL_RE.lastIndex = 0;
+  while ((m = DEV_URL_RE.exec(text || '')) && out.length < 5) {
+    const port = m[1] ? parseInt(m[1], 10) : 80;
+    if (port === 3000) continue;               // 3000 is PocketClaude itself
+    const sub = (m[2] || '/').replace(/[.,)]+$/, '');
+    const key = port + sub;
+    if (seen.has(key)) continue; seen.add(key);
+    out.push({ port, sub });
+  }
+  return out;
+}
+function devEl(list) {
+  const wrap = document.createElement('div'); wrap.className = 'media-box';
+  for (const it of list) {
+    const a = document.createElement('a');
+    a.className = 'dev-link'; a.href = '/proxy/' + it.port + it.sub; a.target = '_blank'; a.rel = 'noopener';
+    a.innerHTML = `<i class="ti ti-external-link"></i>在手機開啟 localhost:${it.port}${esc(it.sub === '/' ? '' : it.sub)}`;
+    wrap.appendChild(a);
+  }
+  return wrap;
+}
+
+// Nicely render the interactive tools (plan / question / todo) instead of raw JSON.
+function buildSpecialTool(m) {
+  const wrap = () => { const w = document.createElement('div'); w.className = 'row-tool'; return w; };
+
+  if (m.name === 'ExitPlanMode' && m.input?.plan) {
+    const w = wrap(); const c = document.createElement('div'); c.className = 'plan-card';
+    const body = document.createElement('div'); body.className = 'plan-body'; body.innerHTML = renderMd(m.input.plan);
+    c.innerHTML = `<div class="plan-head"><i class="ti ti-clipboard-check"></i>執行計畫</div>`;
+    c.appendChild(body); w.appendChild(c); return w;
+  }
+
+  if (m.name === 'TodoWrite' && Array.isArray(m.input?.todos)) {
+    const w = wrap(); const c = document.createElement('div'); c.className = 'todo-card';
+    const icon = s => s === 'completed' ? 'ti-circle-check-filled' : s === 'in_progress' ? 'ti-loader-2' : 'ti-circle';
+    const done = m.input.todos.filter(t => t.status === 'completed').length;
+    c.innerHTML = `<div class="todo-head"><i class="ti ti-list-check"></i>待辦 <span>${done}/${m.input.todos.length}</span></div>` +
+      m.input.todos.map(t => `<div class="todo-item ${esc(t.status)}"><i class="ti ${icon(t.status)}"></i><span>${esc(t.status === 'in_progress' && t.activeForm ? t.activeForm : t.content)}</span></div>`).join('');
+    w.appendChild(c); return w;
+  }
+
+  if (m.name === 'AskUserQuestion' && Array.isArray(m.input?.questions)) {
+    const w = wrap(); const c = document.createElement('div'); c.className = 'ask-card';
+    c.innerHTML = `<div class="ask-head"><i class="ti ti-help-circle"></i>需要你選擇</div>`;
+    for (const q of m.input.questions) {
+      const qEl = document.createElement('div'); qEl.className = 'ask-q';
+      qEl.innerHTML = `<div class="ask-qtext">${esc(q.question)}</div>`;
+      const opts = document.createElement('div'); opts.className = 'ask-opts';
+      for (const o of (q.options || [])) {
+        const btn = document.createElement('button'); btn.className = 'ask-opt';
+        btn.innerHTML = `<span class="ask-opt-label">${esc(o.label)}</span>${o.description ? `<span class="ask-opt-desc">${esc(o.description)}</span>` : ''}`;
+        btn.onclick = () => answerOption(o.label);
+        opts.appendChild(btn);
+      }
+      qEl.appendChild(opts); c.appendChild(qEl);
+    }
+    w.appendChild(c); return w;
+  }
+  return null;
+}
+
+// Click an option → send it as a reply to the active session.
+function answerOption(label) {
+  if (spawning) return;
+  $('prompt').value = label;
+  send();
+}
+
+let _ti = 0;
+function buildMsg(m) {
+  if (m.type === 'user') {
+    const d = document.createElement('div'); d.className = 'row-user';
+    let inner = '';
+    if (m.images?.length) {
+      inner += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:${m.text?'8px':'0'}">` +
+        m.images.map(p=>`<img src="${p}" style="max-width:200px;max-height:160px;border-radius:10px;object-fit:cover;">`).join('') +
+        `</div>`;
+    }
+    if (m.text) inner += `<div>${esc(m.text)}</div>`;
+    d.innerHTML = `<div class="bub-user">${inner}</div>`;
+    return d;
+  }
+  if (m.type === 'text') {
+    const d = document.createElement('div'); d.className = 'row-claude';
+    const inner = document.createElement('div'); inner.className = 'bub-claude';
+    inner.innerHTML = renderMd(m.text);
+    const media = extractMedia(m.text);
+    if (media.length) inner.appendChild(mediaEl(media));
+    const devs = extractDevUrls(m.text);
+    if (devs.length) inner.appendChild(devEl(devs));
+    d.innerHTML = `<div class="avatar">C</div>`;
+    d.appendChild(inner);
+    return d;
+  }
+  if (m.type === 'tool') {
+    const special = buildSpecialTool(m);
+    if (special) return special;
+    const wrap = document.createElement('div'); wrap.className = 'row-tool';
+    const block = document.createElement('div'); block.className = 'tool-block';
+    const chip = document.createElement('div'); chip.className = 'tool-chip';
+    chip.innerHTML = `<i class="ti ti-tool" aria-hidden="true"></i><span class="tool-name">${esc(m.name)}</span><i class="ti ti-chevron-right tool-chev" aria-hidden="true"></i>`;
+    const body = document.createElement('div'); body.className = 'tool-body';
+    body.textContent = prettyToolInput(m.input);
+    chip.onclick = () => { chip.classList.toggle('open'); body.classList.toggle('open'); };
+    block.appendChild(chip); block.appendChild(body);
+    wrap.appendChild(block);
+    return wrap;
+  }
+  if (m.type === 'sys') {
+    const d = document.createElement('div'); d.className = 'row-sys';
+    d.innerHTML = `<span>${esc(m.text)}</span>`;
+    return d;
+  }
+  if (m.type === 'perm') {
+    const wrap = document.createElement('div'); wrap.className = 'row-tool'; wrap.id = 'permrow-' + m.id;
+    const card = document.createElement('div'); card.className = 'perm-card';
+    card.innerHTML = `<div class="perm-head"><i class="ti ti-lock-access"></i>要執行 <b>${esc(m.toolName)}</b>，允許嗎？</div>` +
+      `<div class="perm-input">${esc(prettyToolInput(m.input).slice(0, 500))}</div>`;
+    const btns = document.createElement('div'); btns.className = 'perm-btns';
+    const allow = document.createElement('button'); allow.className = 'perm-allow'; allow.innerHTML = '<i class="ti ti-check"></i>允許'; allow.onclick = () => decide(m.id, 'allow');
+    const deny = document.createElement('button'); deny.className = 'perm-deny'; deny.innerHTML = '<i class="ti ti-x"></i>拒絕'; deny.onclick = () => decide(m.id, 'deny');
+    btns.appendChild(allow); btns.appendChild(deny); card.appendChild(btns);
+    wrap.appendChild(card);
+    return wrap;
+  }
+  return null;
+}
+
+function decide(id, behavior) {
+  try { ws?.send(JSON.stringify({ type: 'permission_decision', id, behavior })); } catch {}
+  $('permrow-' + id)?.querySelector('.perm-btns')?.remove();
+}
+
+// ── Parse events ──
+function parseEv(id, ev) {
+  if (!ev?.type) return;
+  if (ev.type === 'user' && ev.message?.content) {
+    const c = ev.message.content;
+    if (typeof c === 'string' && c.trim() && !SKIP.test(c.trim())) {
+      const raw = c.trim();
+      if (consumeEcho(id, raw)) return;          // we already showed this one
+      push(id, { type: 'user', ...extractImages(raw) });
+    } else if (Array.isArray(c)) {
+      for (const b of c) {
+        const t = b.text?.trim()||'';
+        if (b.type === 'text' && t && !SKIP.test(t)) {
+          if (consumeEcho(id, t)) continue;
+          push(id, { type: 'user', ...extractImages(t) });
+        }
+      }
+    }
+  } else if (ev.type === 'assistant' && ev.message?.content) {
+    for (const b of ev.message.content) {
+      if (b.type === 'text' && b.text?.trim()) push(id, { type: 'text', text: b.text });
+      else if (b.type === 'tool_use') push(id, { type: 'tool', name: b.name, input: b.input });
+    }
+  } else if (ev.type === 'result' && ev.result?.trim()) {
+    push(id, { type: 'text', text: ev.result });
+  }
+}
+
+// ── WebSocket ──
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+
+  ws.onopen = () => { $('conn-dot').className='sdot live'; $('nav-conn').textContent='已連線'; };
+  ws.onclose = e => {
+    $('conn-dot').className='sdot'; $('nav-conn').textContent='斷線...';
+    if (e.code === 4401) {   // auth rejected → re-login instead of retry-looping
+      try { localStorage.removeItem('authToken'); } catch {}
+      ensureAuth().then(ok => ok && connect());
+    } else setTimeout(connect, 3000);
+  };
+
+  ws.onmessage = ({ data }) => {
+    const msg = JSON.parse(data);
+    if (msg.type === 'init') {
+      let saved = null; try { saved = localStorage.getItem('lastSession'); } catch {}
+      for (const s of msg.sessions||[]) upsert(s.sessionId, s.projectName, s.cwd, s.kind, s.lastModified);
+      selectBestSession(msg.sessions||[], saved);   // picks one → lazy-loads its history
+      setSpawn(msg.spawnRunning);
+    }
+    else if (msg.type === 'history') {
+      const s = S[msg.sessionId]; if (!s) return;
+      s.msgs = []; s.loaded = true; s.loading = false;
+      bulkLoading = true;
+      for (const ev of msg.history||[]) parseEv(msg.sessionId, ev);
+      bulkLoading = false;
+      if (msg.sessionId === aid) renderAll(msg.sessionId);
+    }
+    else if (msg.type === 'active_session') upsert(msg.sessionId, msg.projectName || base(msg.cwd), msg.cwd, msg.kind, msg.lastModified);
+    else if (msg.type === 'session_attached') {
+      upsert(msg.sessionId, msg.projectName, '', '');
+      push(msg.sessionId, { type: 'sys', text: `已接入 ${msg.projectName}` });
+    }
+    else if (msg.type === 'session_detached') {
+      killSess(msg.sessionId);
+      push(msg.sessionId, { type: 'sys', text: 'Session 已結束' });
+    }
+    else if (msg.type === 'session_event') {
+      if (S[msg.sessionId]?.loaded) parseEv(msg.sessionId, msg.event);   // live update
+      else if (msg.sessionId !== aid) bump(msg.sessionId);               // not loaded → just flag activity
+    }
+    else if (msg.type === 'spawn_start') { setSpawn(true); if (aid) showTyping(); }
+    else if (msg.type === 'spawn_end') { setSpawn(false); hideTyping(); }
+    else if (msg.type === 'spawn_blocked') {
+      setSpawn(false); hideTyping();
+      push(msg.sessionId || aid, { type: 'sys', text: '⛔ ' + msg.reason });
+    }
+    else if (msg.type === 'permission_request') {
+      // route to the session that actually spawned it — not whatever the user
+      // happens to be looking at
+      const sid = (msg.sessionId && S[msg.sessionId]) ? msg.sessionId : aid;
+      push(sid, { type: 'perm', id: msg.id, toolName: msg.toolName, input: msg.input });
+    }
+    else if (msg.type === 'permission_resolved') {
+      const el = $('permrow-' + msg.id);
+      if (el) {
+        el.querySelector('.perm-btns')?.remove();
+        const r = document.createElement('div'); r.className = 'perm-result';
+        r.textContent = msg.behavior === 'deny' ? '已拒絕' : msg.behavior === 'timeout' ? '逾時（自動拒絕）' : '已允許';
+        el.querySelector('.perm-card').appendChild(r);
+      }
+    }
+    else if (msg.type === 'spawn_event') {
+      // fresh (non-resume) spawns stream over stdout under '__spawn__' — make
+      // sure that pseudo-session exists or every event is silently dropped
+      const sid = msg.resumeSessionId || '__spawn__';
+      if (!S[sid]) { upsert(sid, '新對話', '', 'spawn'); S[sid].loaded = true; }
+      parseEv(sid, msg.event);
+    }
+  };
+}
+
+function setSpawn(r) {
+  spawning = r;
+  $('btn-stop').style.display = r ? 'flex' : 'none';
+  $('btn-send').disabled = r;
+  if (!r) hideTyping();
+}
+
+async function send() {
+  const txt = $('prompt').value.trim();
+  const hasImgs = pendingImages.filter(Boolean).length > 0;
+  if (!txt && !hasImgs) return;
+  if (spawning) return;
+
+  const resumeSessionId = (aid && aid !== '__spawn__') ? aid : null;
+
+  // Upload images first
+  const imgPaths = hasImgs ? await uploadImages() : [];
+
+  // Build message text (append image paths for Claude to read)
+  let fullText = txt;
+  if (imgPaths.length) fullText += '\n' + imgPaths.map(p => `[圖片: ${p}]`).join('\n');
+
+  const permissionMode = $('perm-mode')?.value || 'default';
+  const model = $('model-sel')?.value || 'default';
+  ws.send(JSON.stringify({ type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model }));
+
+  if (resumeSessionId) {
+    // Optimistic echo (nice thumbnails). Remember the exact transcript text so
+    // the file-watcher copy of this same message gets suppressed (consumeEcho).
+    (S[resumeSessionId].pendingEcho ||= []).push(fullText.trim());
+    push(resumeSessionId, { type: 'user', text: txt, images: imgPaths });
+    showTyping();
+  } else {
+    // Fresh spawn: its replies stream under the '__spawn__' pseudo-session —
+    // create/select it so the conversation is actually visible.
+    if (!S['__spawn__']) { upsert('__spawn__', '新對話', '', 'spawn'); S['__spawn__'].loaded = true; }
+    pick('__spawn__');
+    push('__spawn__', { type: 'user', text: txt, images: imgPaths });
+    showTyping();
+  }
+  $('prompt').value = ''; $('prompt').style.height = '';
+}
+
+function stopSpawn() { ws?.send(JSON.stringify({ type: 'stop' })); }
+
+$('prompt').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+$('prompt').addEventListener('input', () => { $('prompt').style.height=''; $('prompt').style.height=Math.min($('prompt').scrollHeight,140)+'px'; });
+
+// ── Permission mode + model: remember the user's choice ──
+$('perm-mode').value = localStorage.getItem('permMode') || 'acceptEdits';
+$('perm-mode').addEventListener('change', () => localStorage.setItem('permMode', $('perm-mode').value));
+$('model-sel').value = localStorage.getItem('model') || 'default';
+$('model-sel').addEventListener('change', () => localStorage.setItem('model', $('model-sel').value));
+
+// ── Attach images via file picker (gallery / camera on mobile) ──
+$('file-input').addEventListener('change', e => {
+  for (const file of e.target.files) {
+    if (!file.type.startsWith('image/')) continue;
+    const reader = new FileReader();
+    reader.onload = ev => addImagePreview(ev.target.result, file);
+    reader.readAsDataURL(file);
+  }
+  e.target.value = '';   // let the same file be re-picked
+});
+
+// ── Keyboard-aware height: pin app to the visible viewport so the input bar
+//    stays above the on-screen keyboard instead of hiding behind it. ──
+const vv = window.visualViewport;
+if (vv) {
+  const fit = () => {
+    document.documentElement.style.setProperty('--app-h', vv.height + 'px');
+    if (aid) msgs.scrollTop = msgs.scrollHeight;
+  };
+  // The "整個被推上去" IS the page panning under the keyboard — forbid it outright.
+  const lock = () => { if (window.scrollY || window.pageYOffset) window.scrollTo(0, 0); };
+  vv.addEventListener('resize', () => { fit(); lock(); });
+  vv.addEventListener('scroll', lock);
+  window.addEventListener('scroll', lock, { passive: true });
+  // iOS pans on focus *before* the viewport resize lands — re-fit a beat later.
+  document.addEventListener('focusin', () => { lock(); setTimeout(() => { fit(); lock(); }, 60); });
+  document.addEventListener('focusout', () => setTimeout(fit, 80));
+  fit();
+}
+
+// ── PWA / Push ──
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function showPushBar(mode) {
+  const bar = $('push-bar');
+  bar.style.display = 'flex';
+  if (mode === 'ios-install') {
+    bar.innerHTML = '<i class="ti ti-square-arrow-up"></i> iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播';
+    bar.onclick = null;
+  } else {
+    bar.innerHTML = '<i class="ti ti-bell"></i> 啟用完成通知';
+    bar.onclick = subscribePush;
+  }
+}
+function hidePushBar() { $('push-bar').style.display = 'none'; }
+
+async function doSubscribe(reg) {
+  const { key } = await (await fetch('/vapid-public-key')).json();
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(key) });
+  await fetch('/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+  return sub;
+}
+
+async function ensurePush() {
+  // iOS exposes Push only when the site is installed to the Home Screen
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (isIOS && !isStandalone) showPushBar('ios-install');
+    return;
+  }
+  const reg = await navigator.serviceWorker.register('/sw.js');
+  if (Notification.permission === 'granted') {
+    try { await doSubscribe(reg); } catch {}   // re-sync after a server restart
+    hidePushBar();
+  } else {
+    showPushBar('enable');
+  }
+}
+
+async function subscribePush() {
+  if (isIOS && !isStandalone) {
+    alert('iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。');
+    return;
+  }
+  if (await Notification.requestPermission() !== 'granted') return;
+  const reg = await navigator.serviceWorker.ready;
+  await doSubscribe(reg);
+  hidePushBar();
+  try { await fetch('/test-push', { method: 'POST' }); } catch {}   // immediate confirmation
+}
+
+function urlB64(b) {
+  const r = atob((b+'='.repeat((4-b.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...r].map(c => c.charCodeAt(0)));
+}
+// ── Auth: exchange the login key for the HttpOnly cc_auth cookie. The cookie
+// then covers fetch / WS / media / proxy automatically; the key is kept in
+// localStorage so re-auth after a cookie expiry is silent. ──
+async function tryAuth(token) {
+  try {
+    const r = await fetch('/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+    return r.ok;
+  } catch { return false; }
+}
+async function ensureAuth() {
+  let token = '';
+  try { token = localStorage.getItem('authToken') || ''; } catch {}
+  if (await tryAuth(token)) return true;   // stored key or still-valid cookie
+  for (;;) {
+    const t = prompt('請輸入 PocketClaude 登入密鑰');
+    if (t == null) { $('nav-conn').textContent = '未登入'; return false; }
+    if (await tryAuth(t.trim())) {
+      try { localStorage.setItem('authToken', t.trim()); } catch {}
+      return true;
+    }
+  }
+}
+
+(async () => {
+  if (!(await ensureAuth())) return;
+  ensurePush();
+  connect();
+})();
+</script>
+</body>
+</html>
