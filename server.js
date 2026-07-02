@@ -14,6 +14,20 @@ const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const upload = multer({ dest: UPLOADS_DIR, limits: { fileSize: 20 * 1024 * 1024 } });
 
+// Uploaded images are transient (Claude reads them once) — sweep files older
+// than 7 days so the folder doesn't grow forever.
+function sweepUploads() {
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  try {
+    for (const f of fs.readdirSync(UPLOADS_DIR)) {
+      const p = path.join(UPLOADS_DIR, f);
+      try { if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p); } catch {}
+    }
+  } catch {}
+}
+sweepUploads();
+setInterval(sweepUploads, 6 * 3600 * 1000);
+
 // Cross-platform: the Claude Desktop app's data directory.
 function claudeAppDir() {
   const home = os.homedir();
@@ -94,6 +108,30 @@ function reqToken(req) {
   const m = /(?:^|;\s*)cc_auth=([^;]+)/.exec(req.headers.cookie || '');
   return m ? decodeURIComponent(m[1]) : null;
 }
+// ── Audit log: one JSON line per security-relevant action (.audit.log, gitignored).
+const AUDIT_FILE = path.join(__dirname, '.audit.log');
+function reqIp(req) {
+  return (String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
+}
+function audit(ev, detail) {
+  try { fs.appendFileSync(AUDIT_FILE, JSON.stringify({ t: new Date().toISOString(), ev, ...detail }) + '\n'); } catch {}
+}
+
+// ── /auth brute-force throttle: 5 failures per IP → 60 s lockout, plus a small
+// constant delay on every failure. (The key has ~192 bits of entropy; this is
+// hygiene, not the real defence.)
+const authFails = new Map();   // ip -> { fails, until }
+function authThrottled(ip) {
+  const e = authFails.get(ip);
+  return !!(e && e.until && Date.now() < e.until);
+}
+function authFailed(ip) {
+  const e = authFails.get(ip) || { fails: 0, until: 0 };
+  e.fails++;
+  if (e.fails >= 5) { e.until = Date.now() + 60000; e.fails = 0; }
+  authFails.set(ip, e);
+}
+
 function setAuthCookie(req, res) {
   const secure = String(req.headers['x-forwarded-proto'] || '').includes('https') ? '; Secure' : '';
   res.setHeader('Set-Cookie',
@@ -116,8 +154,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Exchange the shared secret for the auth cookie (so media/proxy URLs work
 // without ?token= on every link).
 app.post('/auth', (req, res) => {
+  const ip = reqIp(req);
+  if (authThrottled(ip)) { audit('auth_locked', { ip }); return res.status(429).json({ error: 'too many attempts, wait a minute' }); }
   const t = (req.body && req.body.token) || reqToken(req);
-  if (!tokenOk(t)) return res.status(401).json({ error: 'bad token' });
+  if (!tokenOk(t)) {
+    authFailed(ip);
+    audit('auth_fail', { ip });
+    return setTimeout(() => res.status(401).json({ error: 'bad token' }), 300);
+  }
+  authFails.delete(ip);
+  audit('auth_ok', { ip });
   setAuthCookie(req, res);
   res.json({ ok: true });
 });
@@ -252,6 +298,16 @@ function slim(ev) {
   return { ...ev, message: { ...ev.message, content: keep } };
 }
 
+// /proxy is only allowed to reach ports that actually appeared as
+// localhost:<port> in some session's transcript (or CC_PROXY_ALLOW env) —
+// an authenticated client shouldn't get a free SSRF into every local service.
+const seenPorts = new Set(
+  String(process.env.CC_PROXY_ALLOW || '').split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean));
+function scanPorts(str) {
+  const re = /(?:localhost|127\.0\.0\.1):(\d{2,5})/g;
+  let m; while ((m = re.exec(str))) { const p = parseInt(m[1], 10); if (p > 0 && p <= 65535) seenPorts.add(p); }
+}
+
 function tailJsonl(sessionId, jsonlPath, cwd, kind, opts = {}) {
   if (tailedSessions.has(sessionId)) return;
   const P = lp(jsonlPath);
@@ -274,6 +330,7 @@ function tailJsonl(sessionId, jsonlPath, cwd, kind, opts = {}) {
       text = fs.readFileSync(P, 'utf8');
     }
     history = parseLines(text.split('\n').filter(Boolean)).filter(renderable).map(slim);
+    scanPorts(text);
   } catch {}
 
   const entry = {
@@ -292,6 +349,7 @@ function tailJsonl(sessionId, jsonlPath, cwd, kind, opts = {}) {
       fs.readSync(fd, buf, 0, buf.length, entry.offset);
       fs.closeSync(fd);
       entry.offset = st.size;
+      scanPorts(buf.toString('utf8'));
       for (const ev of parseLines(buf.toString('utf8').split('\n').filter(Boolean))) {
         if (!renderable(ev)) continue;
         const e = slim(ev);
@@ -525,6 +583,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
 
   proc.stdout.on('data', chunk => {
+    scanPorts(chunk.toString());
     // When resuming, JSONL file watcher already picks up new events — skip stdout to avoid duplicates
     if (resumeSessionId) return;
     for (const line of chunk.toString().split('\n').filter(Boolean)) {
@@ -545,7 +604,8 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
 // WebSocket — the upgrade request carries the cc_auth cookie (same-origin) or
 // a ?token= fallback; reject anything else before it can see session data.
 wss.on('connection', (ws, req) => {
-  if (!tokenOk(reqToken(req))) { ws.close(4401, 'unauthorized'); return; }
+  if (!tokenOk(reqToken(req))) { audit('ws_denied', { ip: reqIp(req) }); ws.close(4401, 'unauthorized'); return; }
+  const ip = reqIp(req);
   connectedClients.add(ws);
 
   // Send session list WITHOUT history (lazy-loaded per session on demand — the
@@ -566,8 +626,14 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
-    if (msg.type === 'send') startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort);
-    else if (msg.type === 'stop') { if (msg.sessionId || msg.key) killSpawn(msg.key || msg.sessionId); else killAllSpawns(); }
+    if (msg.type === 'send') {
+      audit('send', { ip, session: msg.resumeSessionId || '(new)', cwd: msg.cwd || '', mode: msg.permissionMode, model: msg.model, len: (msg.text || '').length });
+      startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort);
+    }
+    else if (msg.type === 'stop') {
+      audit('stop', { ip, key: msg.key || msg.sessionId || '(all)' });
+      if (msg.sessionId || msg.key) killSpawn(msg.key || msg.sessionId); else killAllSpawns();
+    }
     else if (msg.type === 'get_history') {
       // Paged: default = latest 300 events; `before` (an index into the history
       // array, from a previous response's `offset`) pages further back.
@@ -585,6 +651,7 @@ wss.on('connection', (ws, req) => {
       const p = pendingPerms.get(msg.id);
       if (p) {
         clearTimeout(p.timer); pendingPerms.delete(msg.id);
+        audit('permission_decision', { ip, id: msg.id, behavior: msg.behavior });
         p.res.json({ behavior: msg.behavior === 'deny' ? 'deny' : 'allow' });
         broadcast({ type: 'permission_resolved', id: msg.id, behavior: msg.behavior });
       }
@@ -743,6 +810,10 @@ app.use('/proxy', (req, res) => {
   if (!m) return res.status(400).end('usage: /proxy/<port>/path');
   const port = parseInt(m[1], 10);
   if (!port || port > 65535 || port === Number(PORT)) return res.status(400).end('bad port');
+  if (!seenPorts.has(port)) {
+    audit('proxy_denied', { ip: reqIp(req), port });
+    return res.status(403).end('port not referenced by any session (set CC_PROXY_ALLOW to override)');
+  }
   const subPath = m[2] || '/';
   const prefix = '/proxy/' + port;
   const headers = { ...req.headers, host: '127.0.0.1:' + port, 'accept-encoding': 'identity' };
