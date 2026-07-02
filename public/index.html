@@ -21,8 +21,41 @@
   --text:#f0f0ee;--text2:#aeaeb2;--text3:#636366;
   --blue:#4f8ef7;--blue-dim:#1c2f52;
   --green:#32d74b;--red:#ff453a;--amber:#ffd60a;--amber-dim:#3a2e00;
+  --nav-bg:rgba(20,20,20,.95);
+  --code-inline:#e5c07b;
   --radius:16px;
   --sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px);
+}
+/* Light theme: gray canvas + white cards with a soft shadow (the gray-on-gray
+   first attempt looked muddy). Vars cover most of it; the few places where one
+   dark var served two jobs (bubble bg vs hover bg) get component overrides below. */
+:root[data-theme="light"]{
+  --bg:#f1f1f4;--bg1:#ffffff;--bg2:#ffffff;--bg3:#f2f2f5;--bg4:#e6e6eb;
+  --border:#e7e7ec;--border2:#d8d8de;
+  --text:#1a1a1e;--text2:#55555e;--text3:#9a9aa3;
+  --blue:#0a6cff;--blue-dim:#e3edff;
+  --green:#17a34a;--red:#dd3327;--amber:#a16207;--amber-dim:#fef3c7;
+  --nav-bg:rgba(255,255,255,.92);
+  --code-inline:#a16207;
+}
+/* hover/selected states need their own gray now that --bg2 is white */
+[data-theme="light"] .srow:hover,[data-theme="light"] .srow.on,
+[data-theme="light"] .sheet-row:active,[data-theme="light"] .sheet-row.on,
+[data-theme="light"] #nav-picker:active,[data-theme="light"] #btn-theme:active,
+[data-theme="light"] .tool-chip:hover,[data-theme="light"] #btn-attach:active,
+[data-theme="light"] #send-target:active{background:#ececf0;}
+/* white cards get lift from a soft shadow instead of a lighter fill */
+[data-theme="light"] .bub-claude,[data-theme="light"] .typing-dots,
+[data-theme="light"] .plan-card,[data-theme="light"] .todo-card,
+[data-theme="light"] .ask-card,[data-theme="light"] .perm-card,
+[data-theme="light"] .tool-chip{box-shadow:0 1px 3px rgba(0,0,0,.07);}
+/* controls sit on white surfaces → give them the canvas gray */
+[data-theme="light"] #send-target,[data-theme="light"] #btn-attach,
+[data-theme="light"] #prompt,[data-theme="light"] #perm-mode,
+[data-theme="light"] #model-sel{background-color:#f1f1f4;}
+/* select chevron: darker stroke for light bg */
+[data-theme="light"] #perm-mode,[data-theme="light"] #model-sel{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2355555e' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
 }
 html{height:100%;overflow:hidden;position:fixed;width:100%;}
 body{
@@ -35,7 +68,7 @@ body{
 /* ── Nav ── */
 #nav{
   height:52px;display:flex;align-items:center;gap:10px;
-  padding:0 16px;background:rgba(20,20,20,.95);
+  padding:0 16px;background:var(--nav-bg);
   border-bottom:1px solid var(--border);flex-shrink:0;
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
 }
@@ -55,6 +88,8 @@ body{
 /* desktop: sidebar handles switching, hide the picker chevron + badge */
 @media(min-width:640px){#nav-chev,#nav-badge{display:none!important;}#nav-picker{pointer-events:none;}}
 #btn-stop{display:none;align-items:center;gap:5px;background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.3);color:var(--red);border-radius:8px;padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;}
+#btn-theme{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:transparent;border:none;color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;flex-shrink:0;transition:background .12s;}
+#btn-theme:active{background:var(--bg2);}
 
 /* ── Layout ── */
 #wrap{display:flex;flex:1;overflow:hidden;min-height:0;}
@@ -128,18 +163,19 @@ body{
 .bub-claude code:not(pre code){
   background:var(--bg3);border:1px solid var(--border2);
   border-radius:5px;padding:1px 5px;
-  font-family:ui-monospace,'SF Mono',monospace;font-size:.85em;color:#e5c07b;
+  font-family:ui-monospace,'SF Mono',monospace;font-size:.85em;color:var(--code-inline);
 }
 
-/* Code block */
-.code-wrap{position:relative;margin:.6em 0;border-radius:10px;overflow:hidden;background:#161b22;border:1px solid var(--border2);}
-.code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--border);}
-.code-lang{font-size:11px;color:var(--text3);font-family:ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;}
-.code-copy{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;transition:all .15s;}
-.code-copy:hover{border-color:var(--text2);color:var(--text2);}
+/* Code block — stays dark in BOTH themes (hljs github-dark palette), so its
+   internal colors are fixed, not theme vars. */
+.code-wrap{position:relative;margin:.6em 0;border-radius:10px;overflow:hidden;background:#161b22;border:1px solid #38383a;}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid #2a2a2c;}
+.code-lang{font-size:11px;color:#8e8e93;font-family:ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;}
+.code-copy{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid #38383a;color:#8e8e93;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;transition:all .15s;}
+.code-copy:hover{border-color:#aeaeb2;color:#aeaeb2;}
 .code-copy.done{border-color:var(--green);color:var(--green);}
 .code-wrap pre{margin:0;padding:14px 16px;overflow-x:auto;}
-.code-wrap pre code{font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;background:transparent;border:none;padding:0;color:inherit;}
+.code-wrap pre code{font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.6;background:transparent;border:none;padding:0;color:#c9d1d9;}   /* fixed: the block stays dark in both themes */
 
 /* Lazy-load placeholder */
 .loading-note{margin:auto;color:var(--text3);font-size:13px;padding:30px;text-align:center;}
@@ -165,7 +201,7 @@ body{
 .plan-body{padding:6px 15px 12px;font-size:14px;line-height:1.65;color:var(--text);}
 .plan-body h1,.plan-body h2,.plan-body h3{font-size:1.05em;margin:.7em 0 .3em;color:var(--text);}
 .plan-body ul,.plan-body ol{padding-left:1.3em;margin:.4em 0;} .plan-body li{margin:.2em 0;}
-.plan-body p{margin:.4em 0;} .plan-body code{background:var(--bg3);border-radius:4px;padding:1px 5px;font-size:.85em;color:#e5c07b;}
+.plan-body p{margin:.4em 0;} .plan-body code{background:var(--bg3);border-radius:4px;padding:1px 5px;font-size:.85em;color:var(--code-inline);}
 
 /* Todo card (TodoWrite) */
 .todo-card{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:10px 12px;max-width:100%;}
@@ -192,7 +228,7 @@ body{
 .perm-card{background:var(--bg2);border:1px solid var(--red);border-left:3px solid var(--red);border-radius:12px;padding:12px 14px;max-width:100%;}
 .perm-head{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text);margin-bottom:8px;line-height:1.4;}
 .perm-head i{color:var(--red);font-size:17px;flex-shrink:0;} .perm-head b{color:var(--amber);font-family:ui-monospace,monospace;}
-.perm-input{background:#161b22;border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:12px;font-family:ui-monospace,monospace;color:var(--text2);white-space:pre;overflow:auto;max-height:160px;margin-bottom:10px;}
+.perm-input{background:#161b22;border:1px solid #38383a;border-radius:8px;padding:8px 10px;font-size:12px;font-family:ui-monospace,monospace;color:#aeaeb2;white-space:pre;overflow:auto;max-height:160px;margin-bottom:10px;}
 .perm-btns{display:flex;gap:8px;}
 .perm-allow,.perm-deny{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
 .perm-allow{background:var(--green);color:#062611;} .perm-allow:active{opacity:.85;}
@@ -216,8 +252,8 @@ body{
 .tool-chip.open .tool-chev{transform:rotate(90deg);}
 .tool-body{
   display:none;margin-top:5px;padding:10px 12px;
-  background:#161b22;border:1px solid var(--border2);border-radius:8px;
-  font-size:12px;line-height:1.5;color:var(--text2);
+  background:#161b22;border:1px solid #38383a;border-radius:8px;
+  font-size:12px;line-height:1.5;color:#aeaeb2;
   font-family:ui-monospace,'SF Mono',monospace;
   white-space:pre;overflow:auto;
   max-height:300px;max-width:100%;
@@ -340,6 +376,7 @@ body{
     <span id="nav-badge"></span>
   </button>
   <span id="nav-conn">連線中...</span>
+  <button id="btn-theme" onclick="toggleTheme()" aria-label="切換明暗主題"><i class="ti ti-sun"></i></button>
   <button id="btn-stop" onclick="stopSpawn()"><i class="ti ti-player-stop-filled"></i> 停止</button>
 </div>
 
@@ -402,6 +439,20 @@ body{
 </div>
 
 <script>
+// ── Theme (dark default; applied first so there's no flash) ──
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', t === 'light' ? '#f2f2f7' : '#0d0d0d');
+  const icon = document.querySelector('#btn-theme i');
+  if (icon) icon.className = 'ti ' + (t === 'light' ? 'ti-moon' : 'ti-sun');
+  try { localStorage.setItem('theme', t); } catch {}
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  applyTheme(cur === 'light' ? 'dark' : 'light');
+}
+(() => { let t = 'dark'; try { t = localStorage.getItem('theme') || 'dark'; } catch {} applyTheme(t); })();
+
 // ── Marked setup ──
 marked.setOptions({
   breaks: true,
