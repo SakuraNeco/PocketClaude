@@ -41,7 +41,7 @@
 /* hover/selected states need their own gray now that --bg2 is white */
 [data-theme="light"] .srow:hover,[data-theme="light"] .srow.on,
 [data-theme="light"] .sheet-row:active,[data-theme="light"] .sheet-row.on,
-[data-theme="light"] #nav-picker:active,[data-theme="light"] #btn-theme:active,
+[data-theme="light"] #nav-picker:active,[data-theme="light"] #btn-theme:active,[data-theme="light"] #btn-reload:active,
 [data-theme="light"] .tool-chip:hover,[data-theme="light"] #btn-attach:active,
 [data-theme="light"] #send-target:active{background:#ececf0;}
 /* white cards get lift from a soft shadow instead of a lighter fill */
@@ -88,8 +88,8 @@ body{
 /* desktop: sidebar handles switching, hide the picker chevron + badge */
 @media(min-width:640px){#nav-chev,#nav-badge{display:none!important;}#nav-picker{pointer-events:none;}}
 #btn-stop{display:none;align-items:center;gap:5px;background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.3);color:var(--red);border-radius:8px;padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;}
-#btn-theme{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:transparent;border:none;color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;flex-shrink:0;transition:background .12s;}
-#btn-theme:active{background:var(--bg2);}
+#btn-theme,#btn-reload{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:transparent;border:none;color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;flex-shrink:0;transition:background .12s;}
+#btn-theme:active,#btn-reload:active{background:var(--bg2);}
 #lang-sel{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:3px 7px;font-size:12px;font-family:inherit;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;flex-shrink:0;}
 
 /* ── Layout ── */
@@ -445,6 +445,7 @@ body{
     <span id="nav-badge"></span>
   </button>
   <span id="nav-conn">連線中...</span>
+  <button id="btn-reload" onclick="location.reload()" aria-label="重新整理" title="重新整理"><i class="ti ti-refresh"></i></button>
   <select id="lang-sel" aria-label="Language">
     <option value="zh-TW">繁中</option>
     <option value="zh-CN">简中</option>
@@ -599,6 +600,7 @@ const I18N = {
     attached:'已接入 {n}', session_ended:'Session 已結束', new_chat:'新對話',
     login_prompt:'請輸入 PocketClaude 登入密鑰',
     login_go:'登入', login_bad:'密鑰錯誤，請再試一次',
+    reload:'重新整理',
     push_enable:'啟用完成通知',
     ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
     ios_alert:'iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。',
@@ -623,6 +625,7 @@ const I18N = {
     attached:'Attached to {n}', session_ended:'Session ended', new_chat:'New chat',
     login_prompt:'Enter your PocketClaude login key',
     login_go:'Sign in', login_bad:'Wrong key — try again',
+    reload:'Reload',
     push_enable:'Enable notifications',
     ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
     ios_alert:'On iPhone, add this site to your Home Screen (Share → Add to Home Screen) and open it from there to enable push notifications.',
@@ -647,6 +650,7 @@ const I18N = {
     attached:'{n} に接続しました', session_ended:'セッション終了', new_chat:'新しいチャット',
     login_prompt:'PocketClaude のログインキーを入力してください',
     login_go:'ログイン', login_bad:'キーが違います。もう一度どうぞ',
+    reload:'再読み込み',
     push_enable:'通知を有効にする',
     ios_install:'iPhone：共有 → ホーム画面に追加してから開くと通知が使えます',
     ios_alert:'iPhone では先にこのサイトを「共有 → ホーム画面に追加」し、ホーム画面から開くと通知を有効にできます。',
@@ -671,6 +675,7 @@ const I18N = {
     attached:'已接入 {n}', session_ended:'会话已结束', new_chat:'新对话',
     login_prompt:'请输入 PocketClaude 登录密钥',
     login_go:'登录', login_bad:'密钥错误，请再试一次',
+    reload:'刷新',
     push_enable:'启用完成通知',
     ios_install:'iPhone：点「分享 → 添加到主屏幕」，从主屏幕打开才能开推送',
     ios_alert:'iPhone 上要先把这个网站「分享 → 添加到主屏幕」，再从主屏幕图标打开，才能启用推送。',
@@ -695,6 +700,7 @@ const I18N = {
     attached:'{n} 에 연결됨', session_ended:'세션 종료', new_chat:'새 대화',
     login_prompt:'PocketClaude 로그인 키를 입력하세요',
     login_go:'로그인', login_bad:'키가 올바르지 않습니다. 다시 시도하세요',
+    reload:'새로고침',
     push_enable:'알림 켜기',
     ios_install:'iPhone: 공유 → 홈 화면에 추가 후, 홈 화면에서 열면 알림을 켤 수 있어요',
     ios_alert:'iPhone에서는 먼저 이 사이트를 「공유 → 홈 화면에 추가」하고 홈 화면 아이콘으로 열어야 알림을 켤 수 있습니다.',
@@ -719,6 +725,7 @@ const I18N = {
     attached:'Conectado a {n}', session_ended:'Sesión terminada', new_chat:'Nuevo chat',
     login_prompt:'Introduce tu clave de acceso de PocketClaude',
     login_go:'Entrar', login_bad:'Clave incorrecta, inténtalo de nuevo',
+    reload:'Recargar',
     push_enable:'Activar notificaciones',
     ios_install:'iPhone: Compartir → Añadir a pantalla de inicio, y ábrelo desde ahí para activar las notificaciones',
     ios_alert:'En iPhone, añade este sitio a tu pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde ahí para activar las notificaciones.',
@@ -743,6 +750,7 @@ const I18N = {
     attached:'Connecté à {n}', session_ended:'Session terminée', new_chat:'Nouveau chat',
     login_prompt:'Entrez votre clé de connexion PocketClaude',
     login_go:'Connexion', login_bad:'Clé incorrecte, réessayez',
+    reload:'Recharger',
     push_enable:'Activer les notifications',
     ios_install:'iPhone : Partager → Sur l\'écran d\'accueil, puis ouvrez depuis là pour activer les notifications',
     ios_alert:'Sur iPhone, ajoutez ce site à votre écran d\'accueil (Partager → Sur l\'écran d\'accueil) et ouvrez-le depuis là pour activer les notifications.',
@@ -767,6 +775,7 @@ const I18N = {
     attached:'Mit {n} verbunden', session_ended:'Sitzung beendet', new_chat:'Neuer Chat',
     login_prompt:'PocketClaude-Anmeldeschlüssel eingeben',
     login_go:'Anmelden', login_bad:'Falscher Schlüssel — bitte erneut versuchen',
+    reload:'Neu laden',
     push_enable:'Benachrichtigungen aktivieren',
     ios_install:'iPhone: Teilen → Zum Home-Bildschirm, dann von dort öffnen, um Push zu aktivieren',
     ios_alert:'Auf dem iPhone diese Seite zuerst zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen, um Push-Benachrichtigungen zu aktivieren.',
@@ -1792,6 +1801,7 @@ function applyLang(l) {
   setOpts('model-sel', { default:'model_default' });
   setOpts('effort-sel', { default:'effort_default', low:'effort_low', medium:'effort_medium', high:'effort_high', xhigh:'effort_xhigh', max:'effort_max' });
   if (pushMode) showPushBar(pushMode);
+  const rl = $('btn-reload'); if (rl) { rl.title = T('reload'); rl.setAttribute('aria-label', T('reload')); }
   // login overlay labels
   $('login-sub').textContent = T('login_prompt');
   $('login-go').textContent = T('login_go');
