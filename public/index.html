@@ -432,6 +432,7 @@ body{
 #login-go{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
 #login-go:active{opacity:.85;}
 #login-err{min-height:18px;font-size:13px;color:var(--red);}
+#app-ver{margin-top:10px;text-align:center;font-size:11px;color:var(--text3);font-family:ui-monospace,monospace;}
 </style>
 </head>
 <body>
@@ -530,14 +531,14 @@ body{
       <button class="modal-x" onclick="closeAdv()" aria-label="close"><i class="ti ti-x"></i></button>
     </div>
     <div id="adv-body">
-      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-fork"></div><div class="adv-d" id="d-fork"></div></div><input type="checkbox" id="a-fork"></label>
-      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-wt"></div><div class="adv-d" id="d-wt"></div></div><input type="checkbox" id="a-wt"></label>
-      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-ro"></div><div class="adv-d" id="d-ro"></div></div><input type="checkbox" id="a-ro"></label>
-      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-cont"></div><div class="adv-d" id="d-cont"></div></div><input type="checkbox" id="a-cont"></label>
-      <div class="adv-field"><div class="adv-l" id="l-name"></div><input type="text" id="a-name" maxlength="60" spellcheck="false"></div>
-      <div class="adv-field"><div class="adv-l" id="l-dirs"></div><input type="text" id="a-dirs" spellcheck="false"></div>
-      <div class="adv-field"><div class="adv-l" id="l-sys"></div><textarea id="a-sys" rows="2" maxlength="2000"></textarea></div>
-      <div class="adv-field"><div class="adv-l" id="l-fb"></div>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-fork">分支對話</div><div class="adv-d" id="d-fork">續聊時開成新分支，不動原對話</div></div><input type="checkbox" id="a-fork"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-wt">Worktree 沙盒</div><div class="adv-d" id="d-wt">在隔離的 git worktree 執行，砸了不傷主分支</div></div><input type="checkbox" id="a-wt"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-ro">唯讀模式</div><div class="adv-d" id="d-ro">禁止寫檔/改檔/執行指令 — 只分析不動手</div></div><input type="checkbox" id="a-ro"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-cont">接續最近對話</div><div class="adv-d" id="d-cont">開新對話時，接續該目錄最近的一次對話</div></div><input type="checkbox" id="a-cont"></label>
+      <div class="adv-field"><div class="adv-l" id="l-name">任務名稱</div><input type="text" id="a-name" maxlength="60" spellcheck="false"></div>
+      <div class="adv-field"><div class="adv-l" id="l-dirs">附加目錄（逗號分隔）</div><input type="text" id="a-dirs" spellcheck="false"></div>
+      <div class="adv-field"><div class="adv-l" id="l-sys">自訂指示（附加 system prompt）</div><textarea id="a-sys" rows="2" maxlength="2000"></textarea></div>
+      <div class="adv-field"><div class="adv-l" id="l-fb">後備模型</div>
         <select id="a-fb">
           <option value="">—</option>
           <option value="fable">Fable 5</option>
@@ -546,7 +547,8 @@ body{
           <option value="haiku">Haiku</option>
         </select>
       </div>
-      <button id="adv-clear" onclick="clearAdv()"></button>
+      <button id="adv-clear" onclick="clearAdv()">全部清除</button>
+      <div id="app-ver"></div>
     </div>
   </div>
 </div>
@@ -794,7 +796,13 @@ function toggleTheme() {
 }
 (() => { let t = 'dark'; try { t = localStorage.getItem('theme') || 'dark'; } catch {} applyTheme(t); })();
 
-// ── Marked setup ──
+// App build stamp — shown in the adv menu + console so we can tell instantly
+// which version a device actually loaded.
+const APP_VER = 'v1.1.1 (2026-07-02d)';
+try { console.log('PocketClaude', APP_VER); document.getElementById('app-ver').textContent = APP_VER; } catch {}
+
+// ── Marked setup — resilient: a blocked/missing lib must not kill the app ──
+try {
 marked.setOptions({
   breaks: true,
   gfm: true,
@@ -814,6 +822,7 @@ renderer.code = function(code, lang) {
   return `<div class="code-wrap"><div class="code-header"><span class="code-lang">${label}</span><button class="code-copy" data-cb="${id}"><i class="ti ti-copy"></i> ${T('copy')}</button></div><pre><code id="${id}" class="hljs">${hl}</code></pre></div>`;
 };
 marked.use({ renderer });
+} catch (e) { console.error('marked init failed (blocked?)', e); }
 
 // Clipboard API rejects in plenty of real situations (iOS focus/permission
 // quirks, non-secure origins) — fall back to a hidden textarea + execCommand,
@@ -844,8 +853,10 @@ async function copyCode(id, btn) {
 // (web pages Claude read, file contents) and this PWA can send
 // bypassPermissions commands — XSS here would be remote code execution.
 function renderMd(text) {
-  const html = marked.parse(text || '');
-  return window.DOMPurify ? DOMPurify.sanitize(html) : esc(text || '');
+  try {
+    const html = marked.parse(text || '');
+    return window.DOMPurify ? DOMPurify.sanitize(html) : esc(text || '');
+  } catch { return esc(text || ''); }
 }
 
 // ── Image paste ──
