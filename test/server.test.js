@@ -81,6 +81,20 @@ test('buildSpawnArgs maps advanced options to the right CLI flags', () => {
   assert.equal(args[args.length - 1], 'hi');   // prompt last, after --print
 });
 
+test('buildSpawnArgs streaming mode feeds prompt over stdin, not as a positional', () => {
+  const s = buildSpawnArgs({ prompt: 'hi', resumeSessionId: 'sid-1', permissionMode: 'acceptEdits', streaming: true });
+  const has = (...seq) => s.some((_, i) => seq.every((v, j) => s[i + j] === v));
+  assert.ok(has('--input-format', 'stream-json'));
+  assert.ok(has('--include-partial-messages'));
+  assert.ok(has('--resume', 'sid-1'));
+  assert.equal(s[s.length - 1], '--print');       // bare flag, no positional prompt
+  assert.ok(!s.includes('hi'));                    // prompt goes over stdin instead
+  // non-streaming keeps the positional prompt
+  const n = buildSpawnArgs({ prompt: 'hi', permissionMode: 'default' });
+  assert.equal(n[n.length - 1], 'hi');
+  assert.ok(!n.includes('--input-format'));
+});
+
 test('buildSpawnArgs ignores invalid / inapplicable advanced options', () => {
   // fork without resume is meaningless; continue only applies to fresh chats;
   // unknown fallback models must not pass through

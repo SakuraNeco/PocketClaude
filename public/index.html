@@ -263,6 +263,10 @@ body{
 }
 .tool-body.open{display:block;}
 
+/* Live streaming reply — blinking cursor at the end while tokens arrive */
+.row-claude.live .bub-claude::after{content:'▋';color:var(--blue);margin-left:1px;animation:blink 1s steps(2) infinite;}
+@keyframes blink{50%{opacity:0;}}
+
 /* Typing indicator */
 .row-typing{display:flex;align-items:flex-start;gap:10px;padding:3px 14px;}
 .typing-dots{display:flex;gap:4px;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:5px 20px 20px 20px;padding:14px 18px;}
@@ -989,7 +993,7 @@ function pick(id) {
   if (!s.loaded && !s.loading) requestHistory(id);   // lazy-load this conversation
   renderAll(id);
   updateBusyUI();
-  if (busy.has(id)) showTyping();
+  if (busy.has(id) && !s.live?.text) showTyping();   // typing dots only until the first token lands
 }
 
 function requestHistory(id) {
@@ -1074,6 +1078,7 @@ function renderAll(id) {
     msgs.appendChild(b);
   }
   for (const m of s?.msgs || []) appendEl(buildMsg(m));
+  if (s?.live?.text) paintLive();          // reattach an in-progress streamed reply
   msgs.scrollTop = msgs.scrollHeight;
 }
 
@@ -1417,20 +1422,35 @@ function connect() {
       if (S[msg.sessionId]?.loaded) parseEv(msg.sessionId, msg.event);   // live update
       else if (msg.sessionId !== aid) bump(msg.sessionId);               // not loaded → just flag activity
     }
-    else if (msg.type === 'spawn_start') {
-      const key = msg.key || msg.resumeSessionId || '__spawn__';
-      busy.add(key); updateBusyUI();
-      if (key === aid) showTyping();
+    else if (msg.type === 'spawn_start' || msg.type === 'turn_start') {
+      const id = rkey(msg);
+      busy.add(id); if (id === aid) { updateBusyUI(); showTyping(); }
+    }
+    else if (msg.type === 'turn_end') {
+      const id = rkey(msg);
+      finalizeLive(id);                    // seal the streamed reply into a permanent bubble
+      busy.delete(id);
+      if (id === aid) { updateBusyUI(); hideTyping(); }
+      else bump(id);                       // background session finished a turn
     }
     else if (msg.type === 'spawn_end') {
-      const key = msg.key || msg.resumeSessionId || '__spawn__';
-      busy.delete(key); updateBusyUI();
-      // flush this session's queue: one message per finished turn
-      const q = S[key]?.queue;
-      if (q && q.length) { try { ws.send(JSON.stringify(q.shift())); } catch {} }
+      const id = rkey(msg);
+      finalizeLive(id); busy.delete(id);
+      if (id === aid) { updateBusyUI(); hideTyping(); }
     }
+    else if (msg.type === 'stream_delta') {
+      const id = rkey(msg);
+      ensureSpawnSession(id);
+      growLive(id, msg.text);
+    }
+    else if (msg.type === 'stream_tool') {
+      const id = rkey(msg);
+      ensureSpawnSession(id);
+      finalizeLive(id);                    // text-before-tool becomes its own bubble
+      push(id, { type: 'tool', name: msg.name, input: msg.input });
+    }
+    else if (msg.type === 'spawn_session_id') { /* fresh session's real id — history maps later */ }
     else if (msg.type === 'spawn_blocked') {
-      // the NEW spawn didn't start; whatever was running keeps running — don't touch busy
       push(msg.sessionId || aid, { type: 'sys', text: '⛔ ' + (msg.reasonKey ? T(msg.reasonKey) : msg.reason) });
     }
     else if (msg.type === 'permission_request') {
@@ -1448,14 +1468,52 @@ function connect() {
         el.querySelector('.perm-card').appendChild(r);
       }
     }
-    else if (msg.type === 'spawn_event') {
-      // fresh (non-resume) spawns stream over stdout under '__spawn__' — make
-      // sure that pseudo-session exists or every event is silently dropped
-      const sid = msg.resumeSessionId || '__spawn__';
-      if (!S[sid]) { upsert(sid, T('new_chat'), '', 'spawn'); S[sid].loaded = true; }
-      parseEv(sid, msg.event);
-    }
   };
+}
+
+// Route a streaming event to a client session key: prefer the real session id
+// when we already track it, else the server's key ('__spawn__' for fresh chats).
+function rkey(msg) {
+  // A fresh chat lives under '__spawn__' for the whole process life. Its real
+  // id gets discovered by scanCodeHistory mid-turn — but events still carry
+  // key '__spawn__', so route by that first or they'd leak to a duplicate entry.
+  if (msg.key === '__spawn__') return '__spawn__';
+  if (msg.sessionId && S[msg.sessionId]) return msg.sessionId;
+  return msg.key || msg.sessionId || '__spawn__';
+}
+function ensureSpawnSession(id) {
+  if (!S[id]) { upsert(id, T('new_chat'), '', 'spawn'); S[id].loaded = true; }
+}
+
+// ── Live streaming reply (token-by-token) ──
+let livePaintQueued = false;
+function paintLive() {
+  if (livePaintQueued) return;
+  livePaintQueued = true;
+  requestAnimationFrame(() => {
+    livePaintQueued = false;
+    const live = S[aid]?.live; if (!live) return;
+    let row = msgs.querySelector('.row-claude.live');
+    if (!row) {
+      hideTyping();
+      row = document.createElement('div'); row.className = 'row-claude live';
+      row.innerHTML = '<div class="avatar">C</div><div class="bub-claude"></div>';
+      msgs.appendChild(row);
+    }
+    row.querySelector('.bub-claude').innerHTML = renderMd(live.text);
+    msgs.scrollTop = msgs.scrollHeight;
+  });
+}
+function growLive(id, text) {
+  (S[id].live ||= { text: '' }).text += text;
+  if (id === aid) paintLive();
+}
+// Seal the in-progress reply into a permanent message (on tool break / turn end).
+function finalizeLive(id) {
+  const live = S[id]?.live; if (!live) return;
+  S[id].live = null;
+  if (id === aid) msgs.querySelector('.row-claude.live')?.remove();
+  if (live.text.trim()) push(id, { type: 'text', text: live.text });
 }
 
 async function send() {
@@ -1494,20 +1552,18 @@ async function send() {
     push('__spawn__', { type: 'user', text: txt, images: imgPaths });
   }
 
-  if (busy.has(key)) {
-    // session is mid-task → queue; spawn_end flushes one message per turn
-    (S[key].queue ||= []).push(payload);
-    push(key, { type: 'sys', text: T('queued') });
-  } else {
-    ws.send(JSON.stringify(payload));
-    if (key === aid) showTyping();
-  }
+  // Persistent streaming process: the server writes this straight to the live
+  // session's stdin — whether idle (instant new turn) or mid-turn (runs next).
+  // No client-side queue anymore.
+  finalizeLive(key);                       // seal any in-progress reply before the new turn
+  ws.send(JSON.stringify(payload));
+  if (key === aid) showTyping();
   $('prompt').value = ''; $('prompt').style.height = '';
 }
 
 function stopSpawn() {
   const key = (aid && busy.has(aid)) ? aid : (busy.has('__spawn__') ? '__spawn__' : null);
-  ws?.send(JSON.stringify({ type: 'stop', key }));
+  ws?.send(JSON.stringify({ type: 'stop', key: key || aid }));
 }
 
 // ── File browser ── lists a directory via /files; tap a dir to descend, tap a

@@ -30,9 +30,16 @@ Three kinds of sessions are discovered and tailed into `tailedSessions` (keyed b
 
 `session_event` / `session_attached` / `active_session` / `spawn_*` messages flow over WS; the client renders `user`/`assistant`/`result` lines.
 
-## Concurrency (added 2026-07)
+## Streaming + concurrency (streaming added 2026-07)
 
-Spawns run **one per session, many sessions in parallel** — `activeSpawns` Map keyed by `resumeSessionId` (or `'__spawn__'` for a fresh chat), each entry `{ proc, mcpConfig }`. A second send to a busy session is refused (`spawn_blocked`/`blocked_busy`) and the **client queues it**, flushing one per `spawn_end`. `stop` targets a specific session's spawn. Each interactive spawn gets its **own** `.mcp-perm-<ts>.json` carrying `CC_SESSION` (env) so parallel permission prompts route to the right conversation via `/mcp-permission`'s `session` field. Process trees are killed with `taskkill /T` on Windows. `get_history` is **paged** (`before` offset → older 300 events, `prepend:true`); tool inputs truncated at 4 KB, unlabeled code blocks never `highlightAuto` (both were freeze sources).
+Each session runs **one persistent streaming process** — `activeSpawns` Map keyed by `resumeSessionId` (or `'__spawn__'` for a fresh chat), entry `{ proc, mcpConfig, key, cliSessionId, buf, turnActive, idleTimer }`. Spawned with `--input-format stream-json --output-format stream-json --include-partial-messages --print` (prompt fed over stdin via `streamUserLine`, NOT as a positional). Many sessions run in parallel.
+
+- **Follow-ups / interject:** a second send to a live session writes another user turn to its **stdin** (instant, no cold start; runs after the current turn — the CLI queues rather than interrupts). No more client-side queue or `blocked_busy`.
+- **Lifecycle events:** `spawn_start`/`turn_start` → a turn began; `turn_end` (from a CLI `result`) → turn done, `turnActive=false`; `spawn_end` → process gone. The process stays alive after a turn for `STREAM_IDLE_MS` (5 min), then closes stdin and exits. `turnActive` guards against resumed sessions that emit repeated empty init+result pairs.
+- **Live render (client):** `stream_delta {key,sessionId,text}` accumulates into `S[id].live.text` and paints a `.row-claude.live` bubble (rAF-throttled markdown). `stream_tool` seals the text bubble then adds a tool card. `turn_end` finalizes `live` into a permanent `{type:'text'}` msg. Fresh chats route by `rkey()` → always `'__spawn__'` (their real id is discovered mid-turn by `scanCodeHistory` but events keep key `'__spawn__'`).
+- **No double render:** while `isStreaming(sessionId)`, the transcript tailer records to `history` + advances offset but **suppresses** its `session_event` broadcast (stdout already rendered it live).
+
+`stop` targets a specific session (by key or `cliSessionId`). Each interactive spawn gets its **own** `.mcp-perm-<ts>.json` carrying `CC_SESSION` (env) so parallel permission prompts route to the right conversation via `/mcp-permission`'s `session` field. Process trees are killed with `taskkill /T` on Windows. `get_history` is **paged** (`before` offset → older 300 events, `prepend:true`); tool inputs truncated at 4 KB, unlabeled code blocks never `highlightAuto` (both were freeze sources).
 
 ## Auth (added 2026-07)
 

@@ -202,9 +202,17 @@ function saveSubs() {
 
 const connectedClients = new Set();
 
-// One spawn PER SESSION may run concurrently (key: resumeSessionId or
-// '__spawn__' for a fresh chat). Each entry: { proc, mcpConfig }.
+// One persistent streaming process PER SESSION (key: resumeSessionId or
+// '__spawn__' for a fresh chat). Each entry: { proc, mcpConfig, key,
+// cliSessionId, buf, idleTimer }. The process stays alive between turns for
+// instant follow-ups; an idle timeout closes its stdin so it can exit.
 const activeSpawns = new Map();
+const STREAM_IDLE_MS = 5 * 60 * 1000;   // close an idle live session after 5 min
+function clearIdle(entry) { if (entry?.idleTimer) { clearTimeout(entry.idleTimer); entry.idleTimer = null; } }
+function armIdle(entry) {
+  clearIdle(entry);
+  entry.idleTimer = setTimeout(() => { try { entry.proc.stdin.end(); } catch {} }, STREAM_IDLE_MS);
+}
 
 // Kill the whole process tree — on Windows, proc.kill() leaves claude's
 // children (node subprocesses, shells) running.
@@ -216,8 +224,12 @@ function killTree(proc) {
     try { proc.kill(); } catch {}
   }
 }
-function killSpawn(key) { killTree(activeSpawns.get(key)?.proc); }
-function killAllSpawns() { for (const s of activeSpawns.values()) killTree(s.proc); }
+function killSpawn(idOrKey) {
+  let e = activeSpawns.get(idOrKey);
+  if (!e) for (const s of activeSpawns.values()) if (s.cliSessionId === idOrKey) { e = s; break; }
+  if (e) { clearIdle(e); killTree(e.proc); }
+}
+function killAllSpawns() { for (const s of activeSpawns.values()) { clearIdle(s); killTree(s.proc); } }
 
 // Track tailed JSONL files: sessionId -> { path, size }
 const tailedSessions = new Map();
@@ -354,11 +366,15 @@ function tailJsonl(sessionId, jsonlPath, cwd, kind, opts = {}) {
       fs.closeSync(fd);
       entry.offset = st.size;
       scanPorts(buf.toString('utf8'));
+      // While a streaming process drives this session, stdout already rendered
+      // this content live — record it to history + advance offset, but DON'T
+      // re-broadcast (that would double every message).
+      const quiet = isStreaming(sessionId);
       for (const ev of parseLines(buf.toString('utf8').split('\n').filter(Boolean))) {
         if (!renderable(ev)) continue;
         const e = slim(ev);
         entry.history.push(e);
-        broadcast({ type: 'session_event', sessionId, event: e });
+        if (!quiet) broadcast({ type: 'session_event', sessionId, event: e });
       }
     } catch {}
   };
@@ -548,8 +564,12 @@ const READONLY_DENY = ['Write', 'Edit', 'NotebookEdit', 'Bash'];
 // Build the claude CLI argument list — pure, so it's unit-testable.
 // `adv` = advanced options from the web UI's ⚙ menu; every value is validated
 // or clamped here, never trusted verbatim.
-function buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv = {}, mcpConfig = null }) {
+function buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv = {}, mcpConfig = null, streaming = false }) {
   const args = ['--output-format', 'stream-json', '--verbose'];
+  // Streaming mode keeps ONE long-lived process fed over stdin (no cold start,
+  // partial deltas, mid-task follow-ups). The prompt is written to stdin, not
+  // passed as a positional, so --print is a bare flag here.
+  if (streaming) args.push('--input-format', 'stream-json', '--include-partial-messages');
   if (permissionMode === 'interactive') {
     args.push('--permission-mode', 'default', '--mcp-config', mcpConfig, '--permission-prompt-tool', 'mcp__ccperm__approve');
   } else if (permissionMode === 'bypassPermissions') {
@@ -572,12 +592,75 @@ function buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort
   }
   if (adv.sysPrompt) args.push('--append-system-prompt', String(adv.sysPrompt).slice(0, 2000));
   if (resumeSessionId) args.push('--resume', resumeSessionId);
-  args.push('--print', prompt);
+  if (streaming) args.push('--print');
+  else args.push('--print', prompt);
   return args;
 }
 
-// --- Spawn / resume Claude session ---
+// One user turn, as a stream-json input line for the CLI's stdin.
+function streamUserLine(text) {
+  return JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } }) + '\n';
+}
+
+// Parse one stdout line from a streaming CLI process and turn it into client
+// events. `entry` is the activeSpawns record; `key` its map key.
+function handleStreamLine(entry, key, line) {
+  let o; try { o = JSON.parse(line); } catch { return; }
+  const sid = entry.cliSessionId || (key !== '__spawn__' ? key : null);
+  if (o.type === 'system' && o.subtype === 'init' && o.session_id) {
+    // A fresh (non-resume) session reveals its real id here — remember it so
+    // history/transcript line up, and so the tailer knows to stay quiet.
+    if (!entry.cliSessionId) {
+      entry.cliSessionId = o.session_id;
+      if (key === '__spawn__') broadcast({ type: 'spawn_session_id', key, sessionId: o.session_id });
+    }
+    return;
+  }
+  if (o.type === 'stream_event') {
+    const ev = o.event;
+    if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+      broadcast({ type: 'stream_delta', key, sessionId: sid, text: ev.delta.text });
+    }
+    return;
+  }
+  if (o.type === 'assistant' && Array.isArray(o.message?.content)) {
+    // Text was already streamed as deltas; only emit tool_use blocks as cards.
+    for (const b of o.message.content) {
+      if (b.type === 'tool_use') broadcast({ type: 'stream_tool', key, sessionId: sid, name: b.name, input: b.input });
+    }
+    return;
+  }
+  if (o.type === 'result') {
+    // Some resumed sessions emit repeated init+result pairs with no content;
+    // only the first result of a turn should end it / notify.
+    if (!entry.turnActive) return;
+    entry.turnActive = false;
+    broadcast({ type: 'turn_end', key, sessionId: sid });
+    const s = sid && tailedSessions.get(sid);
+    sendPush('done', s ? path.basename(s.cwd || '') : '', { sessionId: sid || '' });
+    armIdle(entry);   // process stays alive for instant follow-ups; exits if idle
+    return;
+  }
+}
+
+// --- Spawn / resume a persistent streaming Claude session ---
+// One long-lived process per session key. A second send to the SAME session
+// writes another user turn to its stdin (runs after the current turn — no cold
+// start, and no more "blocked_busy"). Different sessions run in parallel.
 function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort, adv) {
+  const key = resumeSessionId || '__spawn__';
+
+  // Already running for this session → feed the follow-up over stdin (instant,
+  // no cold start; runs after the current turn if one is in progress).
+  const existing = activeSpawns.get(key);
+  if (existing) {
+    clearIdle(existing);
+    existing.turnActive = true;
+    try { existing.proc.stdin.write(streamUserLine(prompt)); } catch {}
+    broadcast({ type: 'turn_start', key, sessionId: existing.cliSessionId || (key !== '__spawn__' ? key : null) });
+    return;
+  }
+
   // Guard: never let the web resume PocketClaude's OWN managing session. Its whole
   // context is "run the server on :3000", so the resumed agent helpfully restarts
   // it — killing this very server mid-reply (the self-destruct loop).
@@ -589,42 +672,43 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
     return;
   }
 
-  // One spawn per SESSION — a second send to the same session is refused
-  // (the client queues it instead); other sessions run in parallel.
-  const key = resumeSessionId || '__spawn__';
-  if (activeSpawns.has(key)) {
-    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId, key, reasonKey: 'blocked_busy',
-      reason: '這個 session 已有任務進行中。' });
-    return;
-  }
-
   let mcpConfig = null;
   if (permissionMode === 'interactive') mcpConfig = writeMcpConfig(key);   // route approvals to the phone
-  const args = buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv: adv || {}, mcpConfig });
+  const args = buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv: adv || {}, mcpConfig, streaming: true });
 
-  // Use cwd from tailed session if resuming
   const effectiveCwd = cwd || (resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd) || process.cwd();
   const proc = spawn(CLAUDE_PATH, args, { cwd: effectiveCwd, env: process.env });
-  activeSpawns.set(key, { proc, mcpConfig });
+  const entry = { proc, mcpConfig, key, cliSessionId: resumeSessionId || null, buf: '', turnActive: true };
+  activeSpawns.set(key, entry);
   broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
+
+  // Send the first user turn.
+  try { proc.stdin.write(streamUserLine(prompt)); } catch {}
 
   proc.stdout.on('data', chunk => {
     scanPorts(chunk.toString());
-    // When resuming, JSONL file watcher already picks up new events — skip stdout to avoid duplicates
-    if (resumeSessionId) return;
-    for (const line of chunk.toString().split('\n').filter(Boolean)) {
-      try { broadcast({ type: 'spawn_event', event: JSON.parse(line) }); }
-      catch { broadcast({ type: 'spawn_raw', text: line }); }
+    entry.buf += chunk.toString();
+    let i;
+    while ((i = entry.buf.indexOf('\n')) >= 0) {
+      const line = entry.buf.slice(0, i); entry.buf = entry.buf.slice(i + 1);
+      if (line.trim()) handleStreamLine(entry, key, line);
     }
   });
   proc.stderr.on('data', chunk => broadcast({ type: 'spawn_stderr', text: chunk.toString() }));
   proc.on('close', code => {
+    clearIdle(entry);
     activeSpawns.delete(key);
     if (mcpConfig) { try { fs.unlinkSync(mcpConfig); } catch {} }
-    broadcast({ type: 'spawn_end', code, resumeSessionId, key });
-    const s = resumeSessionId && tailedSessions.get(resumeSessionId);
-    sendPush('done', s ? path.basename(s.cwd || '') : '', { sessionId: resumeSessionId || '' });
+    broadcast({ type: 'spawn_end', code, resumeSessionId, key, sessionId: entry.cliSessionId });
   });
+}
+
+// Is a streaming process currently driving this session? (tailer suppresses
+// its own broadcasts while true, to avoid double-rendering streamed content.)
+function isStreaming(sessionId) {
+  if (activeSpawns.has(sessionId)) return true;
+  for (const s of activeSpawns.values()) if (s.cliSessionId === sessionId) return true;
+  return false;
 }
 
 // WebSocket — the upgrade request carries the cc_auth cookie (same-origin) or
@@ -648,7 +732,11 @@ wss.on('connection', (ws, req) => {
       lastModified,
     });
   }
-  ws.send(JSON.stringify({ type: 'init', sessions, busy: [...activeSpawns.keys()] }));
+  // "busy" = sessions with a turn currently running (not merely a live-idle
+  // process). Report by cliSessionId when known so a reconnecting client maps it.
+  const busy = [];
+  for (const [k, e] of activeSpawns) if (e.turnActive) busy.push(e.cliSessionId || k);
+  ws.send(JSON.stringify({ type: 'init', sessions, busy }));
 
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
