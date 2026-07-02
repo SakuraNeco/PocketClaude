@@ -930,7 +930,12 @@ function updateBusyUI() {
 }
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const base = p => p ? p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p : '';
-const SKIP = /^<(task-notification|system-reminder|system|command-name)/;
+// Transcript lines that are Claude Code internal bookkeeping, not conversation:
+// harness tags, local slash-command records (/model etc.), and the synthetic
+// continuation prompt written after those commands.
+const SKIP = /^<(task-notification|system-reminder|system|command-name|local-command-caveat|command-message|command-args)|^Continue from where you left off\.?$/;
+// Assistant placeholder emitted for local commands that need no AI reply.
+const SKIP_ASSISTANT = /^No response requested\.?$/;
 
 // ── Sessions ──
 function upsert(id, name, cwd, kind, lastModified) {
@@ -1350,7 +1355,7 @@ function parseEv(id, ev) {
     }
   } else if (ev.type === 'assistant' && ev.message?.content) {
     for (const b of ev.message.content) {
-      if (b.type === 'text' && b.text?.trim()) push(id, { type: 'text', text: b.text });
+      if (b.type === 'text' && b.text?.trim() && !SKIP_ASSISTANT.test(b.text.trim())) push(id, { type: 'text', text: b.text });
       else if (b.type === 'tool_use') push(id, { type: 'tool', name: b.name, input: b.input });
     }
   } else if (ev.type === 'result' && ev.result?.trim()) {
