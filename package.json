@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test",
     "tunnel": "npx cloudflared tunnel --url http://localhost:3000"
   },
   "keywords": ["claude", "claude-code", "pwa", "remote-control"],

@@ -25,8 +25,7 @@ function sweepUploads() {
     }
   } catch {}
 }
-sweepUploads();
-setInterval(sweepUploads, 6 * 3600 * 1000);
+// (started in the boot block below, guarded so `require()` in tests is side-effect-free)
 
 // Cross-platform: the Claude Desktop app's data directory.
 function claudeAppDir() {
@@ -871,19 +870,29 @@ app.use('/proxy', (req, res) => {
   req.pipe(preq);
 });
 
-// Clean up per-spawn MCP configs left behind by a crash.
-try {
-  for (const f of fs.readdirSync(__dirname)) {
-    if (/^\.mcp-perm-.*\.json$/.test(f) || f === '.mcp-permission.json') fs.unlinkSync(path.join(__dirname, f));
-  }
-} catch {}
+// Pure, dependency-free helpers are exported for unit tests. Requiring this
+// module must NOT start the server or any timers — hence the boot guard below.
+module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, slim };
 
-watchSessions();
+// ── Boot (only when run directly, not when require()d by a test) ──
+if (require.main === module) {
+  sweepUploads();
+  setInterval(sweepUploads, 6 * 3600 * 1000);
 
-server.listen(PORT, () => {
-  console.log(`PocketClaude server → http://localhost:${PORT}`);
-  console.log(`login key:   ${AUTH_TOKEN}`);
-  console.log(`claude CLI:  ${CLAUDE_PATH}`);
-  console.log(`cowork dir:  ${fs.existsSync(COWORK_DIR) ? COWORK_DIR : '(none — Cowork not installed)'}`);
-  console.log(`Tunnel: npx cloudflared tunnel --url http://localhost:${PORT}`);
-});
+  // Clean up per-spawn MCP configs left behind by a crash.
+  try {
+    for (const f of fs.readdirSync(__dirname)) {
+      if (/^\.mcp-perm-.*\.json$/.test(f) || f === '.mcp-permission.json') fs.unlinkSync(path.join(__dirname, f));
+    }
+  } catch {}
+
+  watchSessions();
+
+  server.listen(PORT, () => {
+    console.log(`PocketClaude server → http://localhost:${PORT}`);
+    console.log(`login key:   ${AUTH_TOKEN}`);
+    console.log(`claude CLI:  ${CLAUDE_PATH}`);
+    console.log(`cowork dir:  ${fs.existsSync(COWORK_DIR) ? COWORK_DIR : '(none — Cowork not installed)'}`);
+    console.log(`Tunnel: npx cloudflared tunnel --url http://localhost:${PORT}`);
+  });
+}
