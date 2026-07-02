@@ -1,10 +1,10 @@
 // Bump to invalidate the cached shell after an asset changes.
-const CACHE = 'pocketclaude-v1';
+const CACHE = 'pocketclaude-v3';
 const SHELL = [
-  '/', '/index.html', '/viewer.html', '/manifest.json', '/icon.svg',
-  '/vendor/marked.min.js', '/vendor/highlight.min.js', '/vendor/purify.min.js',
-  '/vendor/github-dark.min.css', '/vendor/tabler-icons.min.css',
-  '/vendor/fonts/tabler-icons.woff2',
+  '/', '/index.html', '/viewer.html', '/app.webmanifest', '/icon.svg',
+  '/assets/marked.min.js', '/assets/highlight.min.js', '/assets/purify.min.js',
+  '/assets/github-dark.min.css', '/assets/tabler-icons.min.css',
+  '/assets/fonts/tabler-icons.woff2',
 ];
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -49,8 +49,8 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
-  const cacheable = url.pathname.startsWith('/vendor/') ||
-    ['/', '/index.html', '/viewer.html', '/manifest.json', '/icon.svg'].includes(url.pathname);
+  const cacheable = url.pathname.startsWith('/assets/') ||
+    ['/', '/index.html', '/viewer.html', '/app.webmanifest', '/icon.svg'].includes(url.pathname);
   if (!cacheable) return;   // dynamic → let the browser hit the network normally
   e.respondWith((async () => {
     const cached = await caches.match(req);

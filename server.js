@@ -142,9 +142,14 @@ app.use(express.json());
 
 // The shell (no secrets) loads without auth so the login screen can render;
 // every other route — API, WS, /media, /proxy, /uploads — requires the token.
-const PUBLIC_PATHS = new Set(['/', '/index.html', '/viewer.html', '/manifest.json', '/sw.js', '/icon.svg', '/auth']);
+const PUBLIC_PATHS = new Set(['/', '/index.html', '/viewer.html', '/app.webmanifest', '/sw.js', '/icon.svg', '/auth']);
 app.use((req, res, next) => {
   if (PUBLIC_PATHS.has(req.path)) return next();
+  // Bundled libs are part of the shell: the login screen itself needs them
+  // BEFORE any cookie exists (a 401 here bricks first load on a new device).
+  // Named /assets/, NOT /vendor/ — Cloudflare's managed WAF blocks /vendor/*
+  // (composer-attack heuristic) and 403s the whole app through a tunnel.
+  if (req.path.startsWith('/assets/')) return next();
   if (tokenOk(reqToken(req))) return next();
   res.status(401).json({ error: 'unauthorized' });
 });
