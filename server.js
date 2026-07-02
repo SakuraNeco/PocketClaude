@@ -875,6 +875,10 @@ function forwardToPort(port, pathWithQuery, req, res) {
         const ct = pres.headers['content-type'] || '';
         const out = { ...pres.headers };
         delete out['content-length'];
+        // NEVER let a CDN edge-cache proxied content: it sits behind our auth,
+        // but Cloudflare caches .js/.css by extension and would then serve it
+        // to anyone (verified leak before this header was added).
+        out['cache-control'] = 'private, no-store';
         if (out.location && /^\/(?!\/)/.test(out.location)) out.location = prefix + out.location;
         if (ct.includes('text/html')) {
           // remember which port this browser is previewing, so absolute-path

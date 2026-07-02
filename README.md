@@ -72,6 +72,8 @@ npm run tunnel
 
 想要固定網址，請改用 Cloudflare 的[具名通道](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)，把 ingress 指到 `http://localhost:3000`。
 
+> ⚠️ **用自己網域（具名通道）時**：Cloudflare 的受管 WAF 規則會 403 `/node_modules/…` 等路徑，弄壞 `/proxy` 預覽 Vite dev server。請在 Cloudflare 儀表板加一條自訂規則：Hostname 等於你的子網域 → 動作 **Skip**（勾選所有受管規則＋所有剩餘自訂規則）。PocketClaude 自身有密鑰驗證，不依賴 WAF。
+
 ## 裝成 App + 開推播
 
 1. 手機瀏覽器打開上面的 https 網址

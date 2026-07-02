@@ -62,6 +62,8 @@ npm run tunnel
 
 Prints a `https://xxxx.trycloudflare.com` URL — open it on your phone, enter the login key. For a stable URL, use a Cloudflare [named tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) pointing at `http://localhost:3000`.
 
+> ⚠️ **Using your own domain (named tunnel)?** Cloudflare managed WAF rules 403 paths like `/node_modules/…`, breaking `/proxy` previews of Vite dev servers. Add a custom rule in the Cloudflare dashboard: Hostname equals your subdomain → action **Skip** (check all managed rules + all remaining custom rules). PocketClaude has its own key auth and does not rely on the WAF.
+
 ## Install as an app + push
 
 1. Open the https URL in your phone browser
