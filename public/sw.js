@@ -1,5 +1,19 @@
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// Bump to invalidate the cached shell after an asset changes.
+const CACHE = 'pocketclaude-v1';
+const SHELL = [
+  '/', '/index.html', '/viewer.html', '/manifest.json', '/icon.svg',
+  '/vendor/marked.min.js', '/vendor/highlight.min.js', '/vendor/purify.min.js',
+  '/vendor/github-dark.min.css', '/vendor/tabler-icons.min.css',
+  '/vendor/fonts/tabler-icons.woff2',
+];
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {}));
+});
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+  await self.clients.claim();
+})()));
 
 self.addEventListener('push', (e) => {
   let data = { title: 'PocketClaude', body: '通知' };
@@ -28,4 +42,31 @@ self.addEventListener('notificationclick', (e) => {
   })());
 });
 
-self.addEventListener('fetch', (e) => { e.respondWith(fetch(e.request)); });
+// Cache-first for the static shell/vendor (offline-capable, instant load);
+// network-only for everything dynamic (API, /media, /files, /proxy, auth, WS).
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  const cacheable = url.pathname.startsWith('/vendor/') ||
+    ['/', '/index.html', '/viewer.html', '/manifest.json', '/icon.svg'].includes(url.pathname);
+  if (!cacheable) return;   // dynamic → let the browser hit the network normally
+  e.respondWith((async () => {
+    const cached = await caches.match(req);
+    if (cached) {
+      // refresh in the background so the next load gets updates
+      e.waitUntil((async () => {
+        try { const fresh = await fetch(req); if (fresh.ok) (await caches.open(CACHE)).put(req, fresh.clone()); } catch {}
+      })());
+      return cached;
+    }
+    try {
+      const fresh = await fetch(req);
+      if (fresh.ok) (await caches.open(CACHE)).put(req, fresh.clone());
+      return fresh;
+    } catch {
+      return caches.match('/index.html');   // offline fallback
+    }
+  })());
+});
