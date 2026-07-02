@@ -52,9 +52,9 @@
 /* controls sit on white surfaces → give them the canvas gray */
 [data-theme="light"] #send-target,[data-theme="light"] #btn-attach,
 [data-theme="light"] #prompt,[data-theme="light"] #perm-mode,
-[data-theme="light"] #model-sel{background-color:#f1f1f4;}
+[data-theme="light"] #model-sel,[data-theme="light"] #effort-sel{background-color:#f1f1f4;}
 /* select chevron: darker stroke for light bg */
-[data-theme="light"] #perm-mode,[data-theme="light"] #model-sel{
+[data-theme="light"] #perm-mode,[data-theme="light"] #model-sel,[data-theme="light"] #effort-sel{
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2355555e' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
 }
 html{height:100%;overflow:hidden;position:fixed;width:100%;}
@@ -90,6 +90,7 @@ body{
 #btn-stop{display:none;align-items:center;gap:5px;background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.3);color:var(--red);border-radius:8px;padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;}
 #btn-theme{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:transparent;border:none;color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;flex-shrink:0;transition:background .12s;}
 #btn-theme:active{background:var(--bg2);}
+#lang-sel{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:3px 7px;font-size:12px;font-family:inherit;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;flex-shrink:0;}
 
 /* ── Layout ── */
 #wrap{display:flex;flex:1;overflow:hidden;min-height:0;}
@@ -312,17 +313,17 @@ body{
 }
 #btn-send:disabled{background:var(--bg3);color:var(--text3);cursor:default;}
 #btn-send:not(:disabled):active{transform:scale(.91);}
-#opts-row{display:flex;align-items:center;gap:10px;margin-top:9px;padding:0 4px;}
+#opts-row{display:flex;align-items:center;gap:10px;margin-top:9px;padding:0 4px;flex-wrap:wrap;}
 .opt{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);min-width:0;}
 .opt i{font-size:13px;flex-shrink:0;}
-#perm-mode,#model-sel{
+#perm-mode,#model-sel,#effort-sel{
   background:var(--bg2);border:1px solid var(--border2);color:var(--text2);
   border-radius:8px;padding:4px 26px 4px 9px;font-size:12px;font-family:inherit;
   cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;max-width:42vw;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aeaeb2' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
   background-repeat:no-repeat;background-position:right 8px center;
 }
-#perm-mode:focus,#model-sel:focus{border-color:rgba(79,142,247,.6);}
+#perm-mode:focus,#model-sel:focus,#effort-sel:focus{border-color:rgba(79,142,247,.6);}
 .cwd-only{flex:1;}
 #cwd-input{background:transparent;border:none;color:var(--text3);font-size:11px;font-family:ui-monospace,monospace;flex:1;min-width:0;outline:none;}
 #cwd-input::placeholder{color:var(--text3);}
@@ -376,6 +377,16 @@ body{
     <span id="nav-badge"></span>
   </button>
   <span id="nav-conn">連線中...</span>
+  <select id="lang-sel" aria-label="Language">
+    <option value="zh-TW">繁中</option>
+    <option value="zh-CN">简中</option>
+    <option value="en">EN</option>
+    <option value="ja">日本語</option>
+    <option value="ko">한국어</option>
+    <option value="es">ES</option>
+    <option value="fr">FR</option>
+    <option value="de">DE</option>
+  </select>
   <button id="btn-theme" onclick="toggleTheme()" aria-label="切換明暗主題"><i class="ti ti-sun"></i></button>
   <button id="btn-stop" onclick="stopSpawn()"><i class="ti ti-player-stop-filled"></i> 停止</button>
 </div>
@@ -391,7 +402,7 @@ body{
     <div id="input-area">
       <div id="send-target" onclick="openSheet()">
         <i class="ti ti-send" aria-hidden="true"></i>
-        <span>傳送至</span>
+        <span id="send-to-label">傳送至</span>
         <strong id="target-name">—</strong>
         <i class="ti ti-selector" id="target-chev" aria-hidden="true"></i>
       </div>
@@ -422,6 +433,17 @@ body{
             <option value="haiku">Haiku</option>
           </select>
         </label>
+        <label class="opt" title="思考深度">
+          <i class="ti ti-bulb" aria-hidden="true"></i>
+          <select id="effort-sel">
+            <option value="default">預設深度</option>
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high">高</option>
+            <option value="xhigh">極高</option>
+            <option value="max">最大</option>
+          </select>
+        </label>
         <label class="opt cwd-only" title="工作目錄">
           <i class="ti ti-folder" aria-hidden="true"></i>
           <input id="cwd-input" placeholder="留空用預設" spellcheck="false"/>
@@ -439,6 +461,166 @@ body{
 </div>
 
 <script>
+// ── i18n: lightweight dictionary. T(key) at render time; applyLang() rewrites
+// static chrome and re-renders the open conversation. ──
+const I18N = {
+  'zh-TW': {
+    conn_connecting:'連線中...', conn_online:'已連線', conn_offline:'斷線...', conn_unauth:'未登入',
+    stop:'停止', send_to:'傳送至', input_ph:'輸入訊息...', cwd_ph:'留空用預設',
+    sessions:'Sessions', detecting:'偵測 session 中…', loading:'載入對話中…', ended:'已結束',
+    perm_interactive:'逐項核准', perm_acceptEdits:'自動編輯', perm_bypass:'完全自動', perm_plan:'規劃模式',
+    model_default:'預設模型',
+    effort_default:'預設深度', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'極高', effort_max:'最大',
+    copy:'複製', copied:'已複製', copy_fail:'複製失敗', download:'下載', open_phone:'在手機開啟 ',
+    plan_title:'執行計畫', todo_title:'待辦', ask_title:'需要你選擇',
+    perm_pre:'要執行 ', perm_post:'，允許嗎？', allow:'允許', deny:'拒絕',
+    res_allow:'已允許', res_deny:'已拒絕', res_timeout:'逾時（自動拒絕）',
+    attached:'已接入 {n}', session_ended:'Session 已結束', new_chat:'新對話',
+    login_prompt:'請輸入 PocketClaude 登入密鑰',
+    push_enable:'啟用完成通知',
+    ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
+    ios_alert:'iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。',
+    blocked_self:'不能從網頁操控 PocketClaude 自己的對話 — 它會重啟並殺掉這個伺服器。請改選其他 session。',
+    blocked_busy:'已有另一個任務進行中，請先按「停止」或等它完成。',
+  },
+  en: {
+    conn_connecting:'Connecting…', conn_online:'Connected', conn_offline:'Disconnected…', conn_unauth:'Not signed in',
+    stop:'Stop', send_to:'Send to', input_ph:'Type a message…', cwd_ph:'Empty = default',
+    sessions:'Sessions', detecting:'Looking for sessions…', loading:'Loading conversation…', ended:'ended',
+    perm_interactive:'Approve each', perm_acceptEdits:'Auto-edit', perm_bypass:'Full auto', perm_plan:'Plan mode',
+    model_default:'Default model',
+    effort_default:'Default effort', effort_low:'Low', effort_medium:'Medium', effort_high:'High', effort_xhigh:'X-High', effort_max:'Max',
+    copy:'Copy', copied:'Copied', copy_fail:'Failed', download:'Download', open_phone:'Open on phone: ',
+    plan_title:'Plan', todo_title:'To-dos', ask_title:'Your choice needed',
+    perm_pre:'Run ', perm_post:' — allow?', allow:'Allow', deny:'Deny',
+    res_allow:'Allowed', res_deny:'Denied', res_timeout:'Timed out (auto-denied)',
+    attached:'Attached to {n}', session_ended:'Session ended', new_chat:'New chat',
+    login_prompt:'Enter your PocketClaude login key',
+    push_enable:'Enable notifications',
+    ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
+    ios_alert:'On iPhone, add this site to your Home Screen (Share → Add to Home Screen) and open it from there to enable push notifications.',
+    blocked_self:"Can't control PocketClaude's own session from the web — it would restart and kill this very server. Pick another session.",
+    blocked_busy:'Another task is already running — press Stop or wait for it to finish.',
+  },
+  ja: {
+    conn_connecting:'接続中...', conn_online:'接続済み', conn_offline:'切断...', conn_unauth:'未ログイン',
+    stop:'停止', send_to:'送信先', input_ph:'メッセージを入力...', cwd_ph:'空欄でデフォルト',
+    sessions:'セッション', detecting:'セッションを検出中…', loading:'会話を読み込み中…', ended:'終了',
+    perm_interactive:'毎回承認', perm_acceptEdits:'自動編集', perm_bypass:'全自動', perm_plan:'プランモード',
+    model_default:'デフォルトモデル',
+    effort_default:'デフォルト', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'超高', effort_max:'最大',
+    copy:'コピー', copied:'コピー済み', copy_fail:'失敗', download:'ダウンロード', open_phone:'スマホで開く: ',
+    plan_title:'実行プラン', todo_title:'タスク', ask_title:'選択してください',
+    perm_pre:'', perm_post:' を実行しますか？', allow:'許可', deny:'拒否',
+    res_allow:'許可済み', res_deny:'拒否済み', res_timeout:'タイムアウト（自動拒否）',
+    attached:'{n} に接続しました', session_ended:'セッション終了', new_chat:'新しいチャット',
+    login_prompt:'PocketClaude のログインキーを入力してください',
+    push_enable:'通知を有効にする',
+    ios_install:'iPhone：共有 → ホーム画面に追加してから開くと通知が使えます',
+    ios_alert:'iPhone では先にこのサイトを「共有 → ホーム画面に追加」し、ホーム画面から開くと通知を有効にできます。',
+    blocked_self:'PocketClaude 自身のセッションはウェブから操作できません — サーバーが再起動して落ちます。別のセッションを選んでください。',
+    blocked_busy:'別のタスクが実行中です。「停止」を押すか完了を待ってください。',
+  },
+  'zh-CN': {
+    conn_connecting:'连接中...', conn_online:'已连接', conn_offline:'断线...', conn_unauth:'未登录',
+    stop:'停止', send_to:'发送至', input_ph:'输入消息...', cwd_ph:'留空用默认',
+    sessions:'会话', detecting:'检测会话中…', loading:'加载对话中…', ended:'已结束',
+    perm_interactive:'逐项批准', perm_acceptEdits:'自动编辑', perm_bypass:'完全自动', perm_plan:'规划模式',
+    model_default:'默认模型',
+    effort_default:'默认深度', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'极高', effort_max:'最大',
+    copy:'复制', copied:'已复制', copy_fail:'复制失败', download:'下载', open_phone:'在手机打开 ',
+    plan_title:'执行计划', todo_title:'待办', ask_title:'需要你选择',
+    perm_pre:'要执行 ', perm_post:'，允许吗？', allow:'允许', deny:'拒绝',
+    res_allow:'已允许', res_deny:'已拒绝', res_timeout:'超时（自动拒绝）',
+    attached:'已接入 {n}', session_ended:'会话已结束', new_chat:'新对话',
+    login_prompt:'请输入 PocketClaude 登录密钥',
+    push_enable:'启用完成通知',
+    ios_install:'iPhone：点「分享 → 添加到主屏幕」，从主屏幕打开才能开推送',
+    ios_alert:'iPhone 上要先把这个网站「分享 → 添加到主屏幕」，再从主屏幕图标打开，才能启用推送。',
+    blocked_self:'不能从网页操控 PocketClaude 自己的会话 — 它会重启并杀掉这个服务器。请改选其他会话。',
+    blocked_busy:'已有另一个任务进行中，请先点「停止」或等它完成。',
+  },
+  ko: {
+    conn_connecting:'연결 중...', conn_online:'연결됨', conn_offline:'연결 끊김...', conn_unauth:'미로그인',
+    stop:'중지', send_to:'보낼 대상', input_ph:'메시지 입력...', cwd_ph:'비우면 기본값',
+    sessions:'세션', detecting:'세션 검색 중…', loading:'대화 불러오는 중…', ended:'종료됨',
+    perm_interactive:'매번 승인', perm_acceptEdits:'자동 편집', perm_bypass:'완전 자동', perm_plan:'플랜 모드',
+    model_default:'기본 모델',
+    effort_default:'기본 강도', effort_low:'낮음', effort_medium:'중간', effort_high:'높음', effort_xhigh:'매우 높음', effort_max:'최대',
+    copy:'복사', copied:'복사됨', copy_fail:'실패', download:'다운로드', open_phone:'휴대폰에서 열기: ',
+    plan_title:'실행 계획', todo_title:'할 일', ask_title:'선택이 필요합니다',
+    perm_pre:'', perm_post:' 실행을 허용할까요?', allow:'허용', deny:'거부',
+    res_allow:'허용됨', res_deny:'거부됨', res_timeout:'시간 초과(자동 거부)',
+    attached:'{n} 에 연결됨', session_ended:'세션 종료', new_chat:'새 대화',
+    login_prompt:'PocketClaude 로그인 키를 입력하세요',
+    push_enable:'알림 켜기',
+    ios_install:'iPhone: 공유 → 홈 화면에 추가 후, 홈 화면에서 열면 알림을 켤 수 있어요',
+    ios_alert:'iPhone에서는 먼저 이 사이트를 「공유 → 홈 화면에 추가」하고 홈 화면 아이콘으로 열어야 알림을 켤 수 있습니다.',
+    blocked_self:'PocketClaude 자신의 세션은 웹에서 제어할 수 없습니다 — 서버가 재시작되어 죽습니다. 다른 세션을 선택하세요.',
+    blocked_busy:'다른 작업이 진행 중입니다. 「중지」를 누르거나 완료를 기다리세요.',
+  },
+  es: {
+    conn_connecting:'Conectando…', conn_online:'Conectado', conn_offline:'Desconectado…', conn_unauth:'Sin acceso',
+    stop:'Detener', send_to:'Enviar a', input_ph:'Escribe un mensaje…', cwd_ph:'Vacío = predeterminado',
+    sessions:'Sesiones', detecting:'Buscando sesiones…', loading:'Cargando conversación…', ended:'terminado',
+    perm_interactive:'Aprobar cada uno', perm_acceptEdits:'Auto-editar', perm_bypass:'Auto total', perm_plan:'Modo plan',
+    model_default:'Modelo predet.',
+    effort_default:'Esfuerzo predet.', effort_low:'Bajo', effort_medium:'Medio', effort_high:'Alto', effort_xhigh:'Muy alto', effort_max:'Máximo',
+    copy:'Copiar', copied:'Copiado', copy_fail:'Error', download:'Descargar', open_phone:'Abrir en el móvil: ',
+    plan_title:'Plan', todo_title:'Tareas', ask_title:'Se necesita tu elección',
+    perm_pre:'Ejecutar ', perm_post:' — ¿permitir?', allow:'Permitir', deny:'Denegar',
+    res_allow:'Permitido', res_deny:'Denegado', res_timeout:'Tiempo agotado (denegado)',
+    attached:'Conectado a {n}', session_ended:'Sesión terminada', new_chat:'Nuevo chat',
+    login_prompt:'Introduce tu clave de acceso de PocketClaude',
+    push_enable:'Activar notificaciones',
+    ios_install:'iPhone: Compartir → Añadir a pantalla de inicio, y ábrelo desde ahí para activar las notificaciones',
+    ios_alert:'En iPhone, añade este sitio a tu pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde ahí para activar las notificaciones.',
+    blocked_self:'No se puede controlar la propia sesión de PocketClaude desde la web — reiniciaría y mataría este servidor. Elige otra sesión.',
+    blocked_busy:'Ya hay otra tarea en curso — pulsa Detener o espera a que termine.',
+  },
+  fr: {
+    conn_connecting:'Connexion…', conn_online:'Connecté', conn_offline:'Déconnecté…', conn_unauth:'Non connecté',
+    stop:'Arrêter', send_to:'Envoyer à', input_ph:'Écrivez un message…', cwd_ph:'Vide = défaut',
+    sessions:'Sessions', detecting:'Recherche de sessions…', loading:'Chargement…', ended:'terminé',
+    perm_interactive:'Approuver chaque', perm_acceptEdits:'Auto-édition', perm_bypass:'Tout auto', perm_plan:'Mode plan',
+    model_default:'Modèle par défaut',
+    effort_default:'Effort par défaut', effort_low:'Faible', effort_medium:'Moyen', effort_high:'Élevé', effort_xhigh:'Très élevé', effort_max:'Max',
+    copy:'Copier', copied:'Copié', copy_fail:'Échec', download:'Télécharger', open_phone:'Ouvrir sur mobile : ',
+    plan_title:'Plan', todo_title:'Tâches', ask_title:'Votre choix est requis',
+    perm_pre:'Exécuter ', perm_post:' — autoriser ?', allow:'Autoriser', deny:'Refuser',
+    res_allow:'Autorisé', res_deny:'Refusé', res_timeout:'Expiré (refus auto)',
+    attached:'Connecté à {n}', session_ended:'Session terminée', new_chat:'Nouveau chat',
+    login_prompt:'Entrez votre clé de connexion PocketClaude',
+    push_enable:'Activer les notifications',
+    ios_install:'iPhone : Partager → Sur l\'écran d\'accueil, puis ouvrez depuis là pour activer les notifications',
+    ios_alert:'Sur iPhone, ajoutez ce site à votre écran d\'accueil (Partager → Sur l\'écran d\'accueil) et ouvrez-le depuis là pour activer les notifications.',
+    blocked_self:'Impossible de contrôler la propre session de PocketClaude depuis le web — cela redémarrerait et tuerait ce serveur. Choisissez une autre session.',
+    blocked_busy:'Une autre tâche est déjà en cours — appuyez sur Arrêter ou attendez la fin.',
+  },
+  de: {
+    conn_connecting:'Verbinde…', conn_online:'Verbunden', conn_offline:'Getrennt…', conn_unauth:'Nicht angemeldet',
+    stop:'Stopp', send_to:'Senden an', input_ph:'Nachricht eingeben…', cwd_ph:'Leer = Standard',
+    sessions:'Sitzungen', detecting:'Suche Sitzungen…', loading:'Lade Unterhaltung…', ended:'beendet',
+    perm_interactive:'Einzeln bestätigen', perm_acceptEdits:'Auto-Bearbeiten', perm_bypass:'Vollautomatisch', perm_plan:'Planmodus',
+    model_default:'Standardmodell',
+    effort_default:'Standard-Aufwand', effort_low:'Niedrig', effort_medium:'Mittel', effort_high:'Hoch', effort_xhigh:'Sehr hoch', effort_max:'Max',
+    copy:'Kopieren', copied:'Kopiert', copy_fail:'Fehler', download:'Herunterladen', open_phone:'Auf dem Handy öffnen: ',
+    plan_title:'Plan', todo_title:'Aufgaben', ask_title:'Deine Wahl ist gefragt',
+    perm_pre:'', perm_post:' ausführen — erlauben?', allow:'Erlauben', deny:'Ablehnen',
+    res_allow:'Erlaubt', res_deny:'Abgelehnt', res_timeout:'Zeitüberschreitung (abgelehnt)',
+    attached:'Mit {n} verbunden', session_ended:'Sitzung beendet', new_chat:'Neuer Chat',
+    login_prompt:'PocketClaude-Anmeldeschlüssel eingeben',
+    push_enable:'Benachrichtigungen aktivieren',
+    ios_install:'iPhone: Teilen → Zum Home-Bildschirm, dann von dort öffnen, um Push zu aktivieren',
+    ios_alert:'Auf dem iPhone diese Seite zuerst zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen, um Push-Benachrichtigungen zu aktivieren.',
+    blocked_self:'PocketClaudes eigene Sitzung kann nicht über das Web gesteuert werden — der Server würde neu starten und sich selbst beenden. Wähle eine andere Sitzung.',
+    blocked_busy:'Eine andere Aufgabe läuft bereits — drücke Stopp oder warte, bis sie fertig ist.',
+  },
+};
+let LANG = 'zh-TW'; try { LANG = localStorage.getItem('lang') || 'zh-TW'; } catch {}
+if (!I18N[LANG]) LANG = 'zh-TW';
+const T = k => I18N[LANG][k] ?? I18N['zh-TW'][k] ?? k;
+
 // ── Theme (dark default; applied first so there's no flash) ──
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
@@ -463,12 +645,14 @@ const renderer = new marked.Renderer();
 let _toolIdx = 0;
 renderer.code = function(code, lang) {
   const id = 'cb' + (_toolIdx++);
+  // NEVER highlightAuto — it tries every language and freezes the page when a
+  // long history renders hundreds of unlabeled blocks. No lang → plain escape.
   const hl = lang && hljs.getLanguage(lang)
     ? hljs.highlight(code, {language: lang}).value
-    : hljs.highlightAuto(code).value;
+    : esc(code);
   const label = lang || 'code';
   // no inline onclick — DOMPurify strips event handlers; copy uses a delegated listener (data-cb)
-  return `<div class="code-wrap"><div class="code-header"><span class="code-lang">${label}</span><button class="code-copy" data-cb="${id}"><i class="ti ti-copy"></i> 複製</button></div><pre><code id="${id}" class="hljs">${hl}</code></pre></div>`;
+  return `<div class="code-wrap"><div class="code-header"><span class="code-lang">${label}</span><button class="code-copy" data-cb="${id}"><i class="ti ti-copy"></i> ${T('copy')}</button></div><pre><code id="${id}" class="hljs">${hl}</code></pre></div>`;
 };
 marked.use({ renderer });
 
@@ -492,9 +676,9 @@ async function copyCode(id, btn) {
       ta.remove();
     } catch {}
   }
-  btn.innerHTML = ok ? '<i class="ti ti-check"></i> 已複製' : '<i class="ti ti-x"></i> 複製失敗';
+  btn.innerHTML = ok ? `<i class="ti ti-check"></i> ${T('copied')}` : `<i class="ti ti-x"></i> ${T('copy_fail')}`;
   btn.classList.toggle('done', ok);
-  setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> 複製'; btn.classList.remove('done'); }, 2000);
+  setTimeout(() => { btn.innerHTML = `<i class="ti ti-copy"></i> ${T('copy')}`; btn.classList.remove('done'); }, 2000);
 }
 
 // Markdown → HTML, ALWAYS sanitized: transcripts contain untrusted text
@@ -551,6 +735,8 @@ async function uploadImages() {
 // ── State ──
 const S = {}; let aid = null, spawning = false, ws;
 const $ = id => document.getElementById(id);
+let connKey = 'conn_connecting';
+function setConn(k) { connKey = k; $('nav-conn').textContent = T(k); }
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const base = p => p ? p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p : '';
 const SKIP = /^<(task-notification|system-reminder|system|command-name)/;
@@ -648,7 +834,7 @@ function killSess(id) {
   S[id].alive = false;
   $('rdot-'+id)?.classList.remove('live');
   $('hdot-'+id)?.classList.remove('live');
-  [$('rsub-'+id), $('hsub-'+id)].forEach(el => el && (el.textContent = '已結束'));
+  [$('rsub-'+id), $('hsub-'+id)].forEach(el => el && (el.textContent = T('ended')));
 }
 
 // ── Session sheet ──
@@ -692,7 +878,7 @@ let bulkLoading = false;
 function renderAll(id) {
   msgs.innerHTML = ''; hideTyping();
   const s = S[id];
-  if (s && !s.loaded && s.loading) { msgs.innerHTML = '<div class="loading-note">載入對話中…</div>'; return; }
+  if (s && !s.loaded && s.loading) { msgs.innerHTML = `<div class="loading-note">${T('loading')}</div>`; return; }
   for (const m of s?.msgs || []) appendEl(buildMsg(m));
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -743,6 +929,20 @@ function consumeEcho(id, text) {
   return true;
 }
 
+// Claude often writes project-relative markdown links (docs/x.md, /stills/y.png).
+// Rendered as-is they hit the PocketClaude server root and 404 — rewrite every
+// non-web link to stream through /media with the session cwd as base.
+function rewriteLocalLinks(container) {
+  const cwd = S[aid]?.cwd || '';
+  for (const a of container.querySelectorAll('a[href]')) {
+    const h = a.getAttribute('href') || '';
+    if (/^(https?:|mailto:|tel:|#)/i.test(h)) continue;                 // real web links
+    if (/^\/(media|proxy|uploads)\b/.test(h)) continue;                 // already ours
+    a.href = '/media?path=' + encodeURIComponent(h) + (cwd ? '&base=' + encodeURIComponent(cwd) : '');
+    a.target = '_blank'; a.rel = 'noopener';
+  }
+}
+
 // Detect absolute file paths to media/docs in Claude's text → inline players.
 const MEDIA_RE = /(?:[A-Za-z]:\\|\/)[^\n\r"'`)*]*?\.(mp3|wav|m4a|aac|ogg|oga|flac|opus|mp4|mov|webm|png|jpe?g|gif|webp|svg|pdf)\b/gi;
 function extractMedia(text) {
@@ -769,9 +969,9 @@ function mediaEl(list) {
     const name = it.path.replace(/\\/g, '/').split('/').pop();
     const card = document.createElement('div'); card.className = 'media-card';
     if (it.kind === 'audio')
-      card.innerHTML = `<div class="media-name"><i class="ti ti-music"></i>${esc(name)}</div><audio controls preload="none" src="${url}"></audio><a class="media-dl" href="${url}&download=1">下載</a>`;
+      card.innerHTML = `<div class="media-name"><i class="ti ti-music"></i>${esc(name)}</div><audio controls preload="none" src="${url}"></audio><a class="media-dl" href="${url}&download=1">${T('download')}</a>`;
     else if (it.kind === 'video')
-      card.innerHTML = `<div class="media-name"><i class="ti ti-video"></i>${esc(name)}</div><video controls playsinline preload="none" src="${url}"></video><a class="media-dl" href="${url}&download=1">下載</a>`;
+      card.innerHTML = `<div class="media-name"><i class="ti ti-video"></i>${esc(name)}</div><video controls playsinline preload="none" src="${url}"></video><a class="media-dl" href="${url}&download=1">${T('download')}</a>`;
     else if (it.kind === 'image')
       card.innerHTML = `<img class="media-img" src="${url}" loading="lazy"><a class="media-dl" href="${url}&download=1">${esc(name)} ↓</a>`;
     else
@@ -802,7 +1002,7 @@ function devEl(list) {
   for (const it of list) {
     const a = document.createElement('a');
     a.className = 'dev-link'; a.href = '/proxy/' + it.port + it.sub; a.target = '_blank'; a.rel = 'noopener';
-    a.innerHTML = `<i class="ti ti-external-link"></i>在手機開啟 localhost:${it.port}${esc(it.sub === '/' ? '' : it.sub)}`;
+    a.innerHTML = `<i class="ti ti-external-link"></i>${esc(T('open_phone'))}localhost:${it.port}${esc(it.sub === '/' ? '' : it.sub)}`;
     wrap.appendChild(a);
   }
   return wrap;
@@ -815,7 +1015,8 @@ function buildSpecialTool(m) {
   if (m.name === 'ExitPlanMode' && m.input?.plan) {
     const w = wrap(); const c = document.createElement('div'); c.className = 'plan-card';
     const body = document.createElement('div'); body.className = 'plan-body'; body.innerHTML = renderMd(m.input.plan);
-    c.innerHTML = `<div class="plan-head"><i class="ti ti-clipboard-check"></i>執行計畫</div>`;
+    rewriteLocalLinks(body);
+    c.innerHTML = `<div class="plan-head"><i class="ti ti-clipboard-check"></i>${T('plan_title')}</div>`;
     c.appendChild(body); w.appendChild(c); return w;
   }
 
@@ -823,14 +1024,14 @@ function buildSpecialTool(m) {
     const w = wrap(); const c = document.createElement('div'); c.className = 'todo-card';
     const icon = s => s === 'completed' ? 'ti-circle-check-filled' : s === 'in_progress' ? 'ti-loader-2' : 'ti-circle';
     const done = m.input.todos.filter(t => t.status === 'completed').length;
-    c.innerHTML = `<div class="todo-head"><i class="ti ti-list-check"></i>待辦 <span>${done}/${m.input.todos.length}</span></div>` +
+    c.innerHTML = `<div class="todo-head"><i class="ti ti-list-check"></i>${T('todo_title')} <span>${done}/${m.input.todos.length}</span></div>` +
       m.input.todos.map(t => `<div class="todo-item ${esc(t.status)}"><i class="ti ${icon(t.status)}"></i><span>${esc(t.status === 'in_progress' && t.activeForm ? t.activeForm : t.content)}</span></div>`).join('');
     w.appendChild(c); return w;
   }
 
   if (m.name === 'AskUserQuestion' && Array.isArray(m.input?.questions)) {
     const w = wrap(); const c = document.createElement('div'); c.className = 'ask-card';
-    c.innerHTML = `<div class="ask-head"><i class="ti ti-help-circle"></i>需要你選擇</div>`;
+    c.innerHTML = `<div class="ask-head"><i class="ti ti-help-circle"></i>${T('ask_title')}</div>`;
     for (const q of m.input.questions) {
       const qEl = document.createElement('div'); qEl.className = 'ask-q';
       qEl.innerHTML = `<div class="ask-qtext">${esc(q.question)}</div>`;
@@ -873,6 +1074,7 @@ function buildMsg(m) {
     const d = document.createElement('div'); d.className = 'row-claude';
     const inner = document.createElement('div'); inner.className = 'bub-claude';
     inner.innerHTML = renderMd(m.text);
+    rewriteLocalLinks(inner);
     const media = extractMedia(m.text);
     if (media.length) inner.appendChild(mediaEl(media));
     const devs = extractDevUrls(m.text);
@@ -903,11 +1105,11 @@ function buildMsg(m) {
   if (m.type === 'perm') {
     const wrap = document.createElement('div'); wrap.className = 'row-tool'; wrap.id = 'permrow-' + m.id;
     const card = document.createElement('div'); card.className = 'perm-card';
-    card.innerHTML = `<div class="perm-head"><i class="ti ti-lock-access"></i>要執行 <b>${esc(m.toolName)}</b>，允許嗎？</div>` +
+    card.innerHTML = `<div class="perm-head"><i class="ti ti-lock-access"></i>${esc(T('perm_pre'))}<b>${esc(m.toolName)}</b>${esc(T('perm_post'))}</div>` +
       `<div class="perm-input">${esc(prettyToolInput(m.input).slice(0, 500))}</div>`;
     const btns = document.createElement('div'); btns.className = 'perm-btns';
-    const allow = document.createElement('button'); allow.className = 'perm-allow'; allow.innerHTML = '<i class="ti ti-check"></i>允許'; allow.onclick = () => decide(m.id, 'allow');
-    const deny = document.createElement('button'); deny.className = 'perm-deny'; deny.innerHTML = '<i class="ti ti-x"></i>拒絕'; deny.onclick = () => decide(m.id, 'deny');
+    const allow = document.createElement('button'); allow.className = 'perm-allow'; allow.innerHTML = `<i class="ti ti-check"></i>${T('allow')}`; allow.onclick = () => decide(m.id, 'allow');
+    const deny = document.createElement('button'); deny.className = 'perm-deny'; deny.innerHTML = `<i class="ti ti-x"></i>${T('deny')}`; deny.onclick = () => decide(m.id, 'deny');
     btns.appendChild(allow); btns.appendChild(deny); card.appendChild(btns);
     wrap.appendChild(card);
     return wrap;
@@ -953,9 +1155,9 @@ function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}`);
 
-  ws.onopen = () => { $('conn-dot').className='sdot live'; $('nav-conn').textContent='已連線'; };
+  ws.onopen = () => { $('conn-dot').className='sdot live'; setConn('conn_online'); };
   ws.onclose = e => {
-    $('conn-dot').className='sdot'; $('nav-conn').textContent='斷線...';
+    $('conn-dot').className='sdot'; setConn('conn_offline');
     if (e.code === 4401) {   // auth rejected → re-login instead of retry-looping
       try { localStorage.removeItem('authToken'); } catch {}
       ensureAuth().then(ok => ok && connect());
@@ -981,11 +1183,11 @@ function connect() {
     else if (msg.type === 'active_session') upsert(msg.sessionId, msg.projectName || base(msg.cwd), msg.cwd, msg.kind, msg.lastModified);
     else if (msg.type === 'session_attached') {
       upsert(msg.sessionId, msg.projectName, '', '');
-      push(msg.sessionId, { type: 'sys', text: `已接入 ${msg.projectName}` });
+      push(msg.sessionId, { type: 'sys', text: T('attached').replace('{n}', msg.projectName) });
     }
     else if (msg.type === 'session_detached') {
       killSess(msg.sessionId);
-      push(msg.sessionId, { type: 'sys', text: 'Session 已結束' });
+      push(msg.sessionId, { type: 'sys', text: T('session_ended') });
     }
     else if (msg.type === 'session_event') {
       if (S[msg.sessionId]?.loaded) parseEv(msg.sessionId, msg.event);   // live update
@@ -995,7 +1197,8 @@ function connect() {
     else if (msg.type === 'spawn_end') { setSpawn(false); hideTyping(); }
     else if (msg.type === 'spawn_blocked') {
       setSpawn(false); hideTyping();
-      push(msg.sessionId || aid, { type: 'sys', text: '⛔ ' + msg.reason });
+      // server sends a reasonKey we translate locally (msg.reason kept as fallback)
+      push(msg.sessionId || aid, { type: 'sys', text: '⛔ ' + (msg.reasonKey ? T(msg.reasonKey) : msg.reason) });
     }
     else if (msg.type === 'permission_request') {
       // route to the session that actually spawned it — not whatever the user
@@ -1008,7 +1211,7 @@ function connect() {
       if (el) {
         el.querySelector('.perm-btns')?.remove();
         const r = document.createElement('div'); r.className = 'perm-result';
-        r.textContent = msg.behavior === 'deny' ? '已拒絕' : msg.behavior === 'timeout' ? '逾時（自動拒絕）' : '已允許';
+        r.textContent = msg.behavior === 'deny' ? T('res_deny') : msg.behavior === 'timeout' ? T('res_timeout') : T('res_allow');
         el.querySelector('.perm-card').appendChild(r);
       }
     }
@@ -1016,7 +1219,7 @@ function connect() {
       // fresh (non-resume) spawns stream over stdout under '__spawn__' — make
       // sure that pseudo-session exists or every event is silently dropped
       const sid = msg.resumeSessionId || '__spawn__';
-      if (!S[sid]) { upsert(sid, '新對話', '', 'spawn'); S[sid].loaded = true; }
+      if (!S[sid]) { upsert(sid, T('new_chat'), '', 'spawn'); S[sid].loaded = true; }
       parseEv(sid, msg.event);
     }
   };
@@ -1046,7 +1249,8 @@ async function send() {
 
   const permissionMode = $('perm-mode')?.value || 'default';
   const model = $('model-sel')?.value || 'default';
-  ws.send(JSON.stringify({ type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model }));
+  const effort = $('effort-sel')?.value || 'default';
+  ws.send(JSON.stringify({ type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model, effort }));
 
   if (resumeSessionId) {
     // Optimistic echo (nice thumbnails). Remember the exact transcript text so
@@ -1057,7 +1261,7 @@ async function send() {
   } else {
     // Fresh spawn: its replies stream under the '__spawn__' pseudo-session —
     // create/select it so the conversation is actually visible.
-    if (!S['__spawn__']) { upsert('__spawn__', '新對話', '', 'spawn'); S['__spawn__'].loaded = true; }
+    if (!S['__spawn__']) { upsert('__spawn__', T('new_chat'), '', 'spawn'); S['__spawn__'].loaded = true; }
     pick('__spawn__');
     push('__spawn__', { type: 'user', text: txt, images: imgPaths });
     showTyping();
@@ -1075,6 +1279,8 @@ $('perm-mode').value = localStorage.getItem('permMode') || 'acceptEdits';
 $('perm-mode').addEventListener('change', () => localStorage.setItem('permMode', $('perm-mode').value));
 $('model-sel').value = localStorage.getItem('model') || 'default';
 $('model-sel').addEventListener('change', () => localStorage.setItem('model', $('model-sel').value));
+$('effort-sel').value = localStorage.getItem('effort') || 'default';
+$('effort-sel').addEventListener('change', () => localStorage.setItem('effort', $('effort-sel').value));
 
 // ── Attach images via file picker (gallery / camera on mobile) ──
 $('file-input').addEventListener('change', e => {
@@ -1111,25 +1317,38 @@ const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+let pushMode = null;   // remembered so a language switch can re-render the bar
 function showPushBar(mode) {
+  pushMode = mode;
   const bar = $('push-bar');
   bar.style.display = 'flex';
   if (mode === 'ios-install') {
-    bar.innerHTML = '<i class="ti ti-square-arrow-up"></i> iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播';
+    bar.innerHTML = `<i class="ti ti-square-arrow-up"></i> ${esc(T('ios_install'))}`;
     bar.onclick = null;
   } else {
-    bar.innerHTML = '<i class="ti ti-bell"></i> 啟用完成通知';
+    bar.innerHTML = `<i class="ti ti-bell"></i> ${esc(T('push_enable'))}`;
     bar.onclick = subscribePush;
   }
 }
-function hidePushBar() { $('push-bar').style.display = 'none'; }
+function hidePushBar() { pushMode = null; $('push-bar').style.display = 'none'; }
 
 async function doSubscribe(reg) {
   const { key } = await (await fetch('/vapid-public-key')).json();
   let sub = await reg.pushManager.getSubscription();
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(key) });
-  await fetch('/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+  // lang rides along so the server can push notifications in THIS device's language
+  await fetch('/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...sub.toJSON(), lang: LANG }) });
   return sub;
+}
+
+// After a language switch, re-register the existing subscription with the new lang.
+async function syncPushLang() {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await fetch('/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...sub.toJSON(), lang: LANG }) });
+  } catch {}
 }
 
 async function ensurePush() {
@@ -1149,7 +1368,7 @@ async function ensurePush() {
 
 async function subscribePush() {
   if (isIOS && !isStandalone) {
-    alert('iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。');
+    alert(T('ios_alert'));
     return;
   }
   if (await Notification.requestPermission() !== 'granted') return;
@@ -1177,14 +1396,39 @@ async function ensureAuth() {
   try { token = localStorage.getItem('authToken') || ''; } catch {}
   if (await tryAuth(token)) return true;   // stored key or still-valid cookie
   for (;;) {
-    const t = prompt('請輸入 PocketClaude 登入密鑰');
-    if (t == null) { $('nav-conn').textContent = '未登入'; return false; }
+    const t = prompt(T('login_prompt'));
+    if (t == null) { setConn('conn_unauth'); return false; }
     if (await tryAuth(t.trim())) {
       try { localStorage.setItem('authToken', t.trim()); } catch {}
       return true;
     }
   }
 }
+
+// ── Language: rewrite static chrome + re-render the open conversation ──
+function applyLang(l) {
+  if (I18N[l]) LANG = l;
+  try { localStorage.setItem('lang', LANG); } catch {}
+  document.documentElement.lang = LANG;
+  $('lang-sel').value = LANG;
+  $('nav-conn').textContent = T(connKey);
+  $('btn-stop').innerHTML = `<i class="ti ti-player-stop-filled"></i> ${T('stop')}`;
+  $('send-to-label').textContent = T('send_to');
+  $('prompt').placeholder = T('input_ph');
+  $('cwd-input').placeholder = T('cwd_ph');
+  $('sb-head').textContent = T('sessions');
+  $('sheet-head').textContent = T('sessions');
+  const se = $('sheet-empty'); if (se) se.textContent = T('detecting');
+  const setOpts = (id, map) => { for (const o of $(id).options) if (map[o.value]) o.textContent = T(map[o.value]); };
+  setOpts('perm-mode', { interactive:'perm_interactive', acceptEdits:'perm_acceptEdits', bypassPermissions:'perm_bypass', plan:'perm_plan' });
+  setOpts('model-sel', { default:'model_default' });
+  setOpts('effort-sel', { default:'effort_default', low:'effort_low', medium:'effort_medium', high:'effort_high', xhigh:'effort_xhigh', max:'effort_max' });
+  if (pushMode) showPushBar(pushMode);
+  if (aid && S[aid]?.loaded) renderAll(aid);   // tool cards / buttons pick up the new language
+  syncPushLang();                              // push notifications follow the UI language
+}
+$('lang-sel').addEventListener('change', () => applyLang($('lang-sel').value));
+applyLang(LANG);
 
 (async () => {
   if (!(await ensureAuth())) return;

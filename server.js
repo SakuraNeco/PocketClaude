@@ -174,16 +174,31 @@ function broadcast(data) {
   for (const c of connectedClients) if (c.readyState === 1) c.send(msg);
 }
 
-async function sendPush(title, body, data) {
+// Push notifications are rendered PER SUBSCRIBER in the language that device
+// registered with (/subscribe carries `lang`). Keys: <kind> = title, <kind>_b = body.
+const PUSH_I18N = {
+  'zh-TW': { done:'Claude 完成了', done_b:'{n} 結束', perm:'需要授權 🔐', perm_b:'{n} 等待核准', test:'PocketClaude 測試 🔔', test_b:'推播正常運作！' },
+  'zh-CN': { done:'Claude 完成了', done_b:'{n} 结束', perm:'需要授权 🔐', perm_b:'{n} 等待批准', test:'PocketClaude 测试 🔔', test_b:'推送正常工作！' },
+  en: { done:'Claude finished', done_b:'{n} is done', perm:'Approval needed 🔐', perm_b:'{n} awaits your approval', test:'PocketClaude test 🔔', test_b:'Push is working!' },
+  ja: { done:'Claude が完了', done_b:'{n} が終了しました', perm:'承認が必要 🔐', perm_b:'{n} が承認待ちです', test:'PocketClaude テスト 🔔', test_b:'プッシュ通知は正常です！' },
+  ko: { done:'Claude 완료', done_b:'{n} 종료', perm:'승인 필요 🔐', perm_b:'{n} 승인 대기 중', test:'PocketClaude 테스트 🔔', test_b:'푸시가 정상 작동해요!' },
+  es: { done:'Claude terminó', done_b:'{n} finalizado', perm:'Aprobación necesaria 🔐', perm_b:'{n} espera tu aprobación', test:'Prueba de PocketClaude 🔔', test_b:'¡Las notificaciones funcionan!' },
+  fr: { done:'Claude a terminé', done_b:'{n} terminé', perm:'Approbation requise 🔐', perm_b:'{n} attend votre accord', test:'Test PocketClaude 🔔', test_b:'Les notifications fonctionnent !' },
+  de: { done:'Claude ist fertig', done_b:'{n} abgeschlossen', perm:'Freigabe nötig 🔐', perm_b:'{n} wartet auf Freigabe', test:'PocketClaude-Test 🔔', test_b:'Push funktioniert!' },
+};
+async function sendPush(kind, name, data) {
   let changed = false;
   for (const [endpoint, sub] of pushSubscriptions) {
+    const L = PUSH_I18N[sub.lang] || PUSH_I18N['zh-TW'];
+    const title = L[kind] || kind;
+    const body = (L[kind + '_b'] || '').replace('{n}', name || 'Claude');
     try { await webpush.sendNotification(sub, JSON.stringify({ title, body, ...data })); }
     catch (e) {
       if (e.statusCode === 404 || e.statusCode === 410) { pushSubscriptions.delete(endpoint); changed = true; }
     }
   }
   if (changed) saveSubs();
-  console.log(`Push "${title}" → ${pushSubscriptions.size} subscriber(s)`);
+  console.log(`Push "${kind}" → ${pushSubscriptions.size} subscriber(s)`);
 }
 
 // Convert cwd path to Claude's project dir name.
@@ -210,12 +225,27 @@ function renderable(ev) {
 
 // Strip content blocks the client never renders (assistant `thinking`, user
 // `tool_result`/`image`) — they can be megabytes each and bloat the payload.
+// Long strings inside tool_use inputs (Write file bodies, huge Edits) are also
+// truncated: the client only shows them in a collapsible chip, and full-size
+// inputs were the main reason history payloads reached tens of MB.
+function truncStr(s, cap) {
+  return typeof s === 'string' && s.length > cap ? s.slice(0, cap) + '\n… [truncated]' : s;
+}
+function slimBlock(b) {
+  if (b.type === 'tool_use' && b.input && typeof b.input === 'object') {
+    const input = {};
+    for (const [k, v] of Object.entries(b.input)) input[k] = truncStr(v, 4000);
+    return { ...b, input };
+  }
+  if (b.type === 'text') return { ...b, text: truncStr(b.text, 50000) };
+  return b;
+}
 function slim(ev) {
   const c = ev.message?.content;
   if (!Array.isArray(c)) return ev;
-  const keep = ev.type === 'assistant'
+  const keep = (ev.type === 'assistant'
     ? c.filter(b => b.type === 'text' || b.type === 'tool_use')
-    : c.filter(b => b.type === 'text');
+    : c.filter(b => b.type === 'text')).map(slimBlock);
   return { ...ev, message: { ...ev.message, content: keep } };
 }
 
@@ -429,6 +459,7 @@ function watchSessions() {
 // Permission modes / models the web UI may request
 const PERM_MODES = new Set(['default', 'acceptEdits', 'bypassPermissions', 'plan']);
 const MODELS = new Set(['fable', 'opus', 'sonnet', 'haiku']);   // 'default' → don't pass --model
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);   // 'default' → don't pass --effort
 
 // MCP config for the interactive permission-prompt tool (written once at startup).
 const MCP_CONFIG_PATH = path.join(__dirname, '.mcp-permission.json');
@@ -443,14 +474,14 @@ const pendingPerms = new Map();
 let permSeq = 0;
 
 // --- Spawn / resume Claude session ---
-function startClaude(cwd, prompt, resumeSessionId, permissionMode, model) {
+function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort) {
   // Guard: never let the web resume PocketClaude's OWN managing session. Its whole
   // context is "run the server on :3000", so the resumed agent helpfully restarts
   // it — killing this very server mid-reply (the self-destruct loop).
   const tcwd = resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd;
   const target = cwd || tcwd;
   if (target && path.resolve(target) === path.resolve(__dirname)) {
-    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId,
+    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId, reasonKey: 'blocked_self',
       reason: '不能從網頁操控 PocketClaude 自己的對話 — 它會重啟並殺掉這個伺服器。請改選其他 session。' });
     return;
   }
@@ -458,7 +489,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model) {
   // One spawn at a time — refuse loudly instead of silently killing the
   // other session's running task (which is what the old code did).
   if (activeClaudeProcess) {
-    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId,
+    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId, reasonKey: 'blocked_busy',
       reason: '已有另一個任務進行中，請先按「停止」或等它完成。' });
     return;
   }
@@ -473,6 +504,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model) {
     args.push('--permission-mode', permissionMode);
   }
   if (model && MODELS.has(model)) args.push('--model', model);
+  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
   if (resumeSessionId) args.push('--resume', resumeSessionId);
   args.push('--print', prompt);
 
@@ -497,7 +529,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model) {
     activeSpawnSessionId = null;
     broadcast({ type: 'spawn_end', code, resumeSessionId });
     const s = resumeSessionId && tailedSessions.get(resumeSessionId);
-    sendPush('Claude 完成了', `${s ? path.basename(s.cwd||'') : '任務'}結束`);
+    sendPush('done', s ? path.basename(s.cwd || '') : '');
   });
 }
 
@@ -525,11 +557,13 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
-    if (msg.type === 'send') startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model);
+    if (msg.type === 'send') startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort);
     else if (msg.type === 'stop' && activeClaudeProcess) killActive();
     else if (msg.type === 'get_history') {
       const s = tailedSessions.get(msg.sessionId);
-      ws.send(JSON.stringify({ type: 'history', sessionId: msg.sessionId, history: s?.history || [] }));
+      // last 300 renderable events is plenty for a phone screen; a full history
+      // can be thousands of events / tens of MB and freezes the client
+      ws.send(JSON.stringify({ type: 'history', sessionId: msg.sessionId, history: (s?.history || []).slice(-300) }));
     }
     else if (msg.type === 'permission_decision') {
       const p = pendingPerms.get(msg.id);
@@ -554,7 +588,7 @@ app.post('/subscribe', (req, res) => {
   res.json({ ok: true, total: pushSubscriptions.size });
 });
 app.post('/test-push', async (_, res) => {
-  await sendPush('PocketClaude 測試 🔔', '推播正常運作！', { tag: 'test' });
+  await sendPush('test', '', { tag: 'test' });
   res.json({ ok: true, subscribers: pushSubscriptions.size });
 });
 
@@ -576,6 +610,15 @@ const MEDIA_MIME = {
   '.mp4':'video/mp4', '.mov':'video/quicktime', '.webm':'video/webm',
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.gif':'image/gif',
   '.webp':'image/webp', '.svg':'image/svg+xml', '.pdf':'application/pdf',
+  // Text files render inline in the browser. Everything (incl. .html/.svg-as-doc)
+  // is served as text/plain ON PURPOSE — an HTML file served as text/html would
+  // execute same-origin with the auth cookie (stored-XSS via any file under home).
+  '.md':'text/plain; charset=utf-8', '.txt':'text/plain; charset=utf-8',
+  '.log':'text/plain; charset=utf-8', '.json':'text/plain; charset=utf-8',
+  '.csv':'text/plain; charset=utf-8', '.html':'text/plain; charset=utf-8',
+  '.js':'text/plain; charset=utf-8', '.ts':'text/plain; charset=utf-8',
+  '.py':'text/plain; charset=utf-8', '.yaml':'text/plain; charset=utf-8',
+  '.yml':'text/plain; charset=utf-8', '.toml':'text/plain; charset=utf-8',
 };
 // Find a file whose path ends with `relTail` somewhere under `base` (handles
 // root-relative paths like /stills/x.png that live under a sub-project folder).
@@ -671,7 +714,7 @@ app.post('/mcp-permission', (req, res) => {
   }, 120000);
   pendingPerms.set(id, { res, timer });
   broadcast({ type: 'permission_request', id, sessionId: activeSpawnSessionId, toolName: tool_name || 'tool', input: input || {} });
-  sendPush('需要授權 🔐', `${tool_name || '工具'} 要你核准`);
+  sendPush('perm', tool_name || 'tool');
 });
 
 // Reverse-proxy a local dev server so the phone can view it: /proxy/<port>/...

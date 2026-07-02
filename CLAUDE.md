@@ -46,6 +46,7 @@ Everything except the PWA shell (`/`, `/index.html`, `/manifest.json`, `/sw.js`,
 - **Permission**: `interactive` (逐項核准) · `acceptEdits` · `bypassPermissions` (→ `--dangerously-skip-permissions`) · `plan`. `acceptEdits`/`plan` map to `--permission-mode`; `bypassPermissions` runs everything (destructive-capable).
 - **`interactive` mode → real per-tool approval from the phone.** Spawns with `--permission-mode default --mcp-config .mcp-permission.json --permission-prompt-tool mcp__ccperm__approve`. **`mcp-permission.js`** (3rd file, an MCP stdio server Claude launches) receives each permission decision and POSTs it to the server's `/mcp-permission`, which broadcasts a `permission_request` over WS (+ push), holds the HTTP response until the user taps allow/deny (`permission_decision`) or a 120 s timeout auto-denies. Proven end-to-end. (`.mcp-permission.json` is generated at startup, gitignored.)
 - **Model**: `default` (no flag) · `fable` · `opus` · `sonnet` · `haiku` → `--model <alias>` (aliases track the latest version of each tier).
+- **Effort (思考深度)**: `default` (no flag) · `low` · `medium` · `high` · `xhigh` · `max` → `--effort <level>`.
 
 Interactive tool cards (client): `ExitPlanMode` → markdown plan card, `TodoWrite` → checklist, `AskUserQuestion` → clickable options (click = reply). Everything else → collapsible tool chip.
 
