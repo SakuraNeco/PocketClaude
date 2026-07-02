@@ -367,6 +367,35 @@ body{
 @media(min-width:640px){#sheet,#sheet-bg{display:none!important;}}
 
 ::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* Mic button */
+#btn-mic{width:44px;height:44px;border-radius:50%;background:var(--bg2);color:var(--text2);border:1.5px solid var(--border2);font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .12s,color .15s;}
+#btn-mic:active{transform:scale(.91);}
+#btn-mic.rec{background:var(--red);color:#fff;border-color:var(--red);animation:micpulse 1.3s infinite;}
+@keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,69,58,.4);}50%{box-shadow:0 0 0 7px rgba(255,69,58,0);}}
+
+/* Files button in sidebar */
+#btn-files{display:flex;align-items:center;justify-content:center;gap:7px;margin:4px 8px 10px;padding:9px;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit;flex-shrink:0;}
+#btn-files:active{background:var(--bg3);}
+@media(max-width:639px){#btn-files{display:none;}}
+
+/* File browser modal */
+#files-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;}
+#files-modal.open{display:flex;}
+#files-box{background:var(--bg1);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.4);}
+#files-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
+#files-title{flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:7px;overflow:hidden;}
+#files-crumb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace;font-size:12px;color:var(--text2);}
+#files-close{background:transparent;border:none;color:var(--text2);font-size:20px;cursor:pointer;flex-shrink:0;}
+#files-list{overflow-y:auto;padding:6px;}
+.frow{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;cursor:pointer;}
+.frow:active{background:var(--bg2);}
+.frow i{font-size:19px;flex-shrink:0;}
+.frow.d i{color:var(--blue);} .frow.f i{color:var(--text3);}
+.finfo{flex:1;min-width:0;}
+.fname{font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fmeta{font-size:11px;color:var(--text3);margin-top:1px;}
+.fempty{padding:24px;text-align:center;color:var(--text3);font-size:13px;}
 </style>
 </head>
 <body>
@@ -397,6 +426,7 @@ body{
   <div id="sidebar">
     <div id="sb-head">Sessions</div>
     <div id="sb-list"></div>
+    <button id="btn-files" onclick="openFiles()"><i class="ti ti-folder"></i> <span id="files-label">檔案</span></button>
   </div>
   <div id="panel">
     <div id="msgs"></div>
@@ -412,6 +442,7 @@ body{
         <button id="btn-attach" onclick="document.getElementById('file-input').click()" aria-label="附加圖片"><i class="ti ti-photo-plus"></i></button>
         <input type="file" id="file-input" accept="image/*" multiple style="display:none">
         <textarea id="prompt" rows="1" placeholder="輸入訊息..."></textarea>
+        <button id="btn-mic" onclick="toggleMic()" aria-label="語音輸入"><i class="ti ti-microphone"></i></button>
         <button id="btn-send" onclick="send()" aria-label="送出"><i class="ti ti-arrow-up"></i></button>
       </div>
       <div id="img-previews"></div>
@@ -455,6 +486,16 @@ body{
   </div>
 </div>
 
+<div id="files-modal">
+  <div id="files-box">
+    <div id="files-head">
+      <span id="files-title"><i class="ti ti-folder"></i> <span id="files-crumb">檔案</span></span>
+      <button id="files-close" onclick="closeFiles()" aria-label="關閉"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="files-list"></div>
+  </div>
+</div>
+
 <div id="sheet-bg" onclick="closeSheet()"></div>
 <div id="sheet">
   <div id="sheet-handle"></div>
@@ -486,6 +527,7 @@ const I18N = {
     blocked_busy:'這個 session 已有任務進行中。',
     queued:'已排隊 — 任務結束後自動送出',
     load_more:'載入更早的訊息',
+    files:'檔案', mic_unsupported:'此瀏覽器不支援語音輸入',
   },
   en: {
     conn_connecting:'Connecting…', conn_online:'Connected', conn_offline:'Disconnected…', conn_unauth:'Not signed in',
@@ -507,6 +549,7 @@ const I18N = {
     blocked_busy:'A task is already running in this session.',
     queued:'Queued — will send when the current task finishes',
     load_more:'Load earlier messages',
+    files:'Files', mic_unsupported:'Voice input not supported in this browser',
   },
   ja: {
     conn_connecting:'接続中...', conn_online:'接続済み', conn_offline:'切断...', conn_unauth:'未ログイン',
@@ -528,6 +571,7 @@ const I18N = {
     blocked_busy:'このセッションではタスクが実行中です。',
     queued:'キュー追加 — タスク完了後に自動送信',
     load_more:'過去のメッセージを読み込む',
+    files:'ファイル', mic_unsupported:'このブラウザは音声入力に非対応です',
   },
   'zh-CN': {
     conn_connecting:'连接中...', conn_online:'已连接', conn_offline:'断线...', conn_unauth:'未登录',
@@ -549,6 +593,7 @@ const I18N = {
     blocked_busy:'这个会话已有任务进行中。',
     queued:'已排队 — 任务结束后自动发送',
     load_more:'加载更早的消息',
+    files:'文件', mic_unsupported:'此浏览器不支持语音输入',
   },
   ko: {
     conn_connecting:'연결 중...', conn_online:'연결됨', conn_offline:'연결 끊김...', conn_unauth:'미로그인',
@@ -570,6 +615,7 @@ const I18N = {
     blocked_busy:'이 세션에서 이미 작업이 실행 중입니다.',
     queued:'대기열에 추가됨 — 작업이 끝나면 자동 전송',
     load_more:'이전 메시지 불러오기',
+    files:'파일', mic_unsupported:'이 브라우저는 음성 입력을 지원하지 않습니다',
   },
   es: {
     conn_connecting:'Conectando…', conn_online:'Conectado', conn_offline:'Desconectado…', conn_unauth:'Sin acceso',
@@ -591,6 +637,7 @@ const I18N = {
     blocked_busy:'Ya hay una tarea en curso en esta sesión.',
     queued:'En cola — se enviará al terminar la tarea actual',
     load_more:'Cargar mensajes anteriores',
+    files:'Archivos', mic_unsupported:'Entrada de voz no compatible con este navegador',
   },
   fr: {
     conn_connecting:'Connexion…', conn_online:'Connecté', conn_offline:'Déconnecté…', conn_unauth:'Non connecté',
@@ -612,6 +659,7 @@ const I18N = {
     blocked_busy:'Une tâche est déjà en cours dans cette session.',
     queued:'En file — envoyé à la fin de la tâche en cours',
     load_more:'Charger les messages précédents',
+    files:'Fichiers', mic_unsupported:'Saisie vocale non prise en charge par ce navigateur',
   },
   de: {
     conn_connecting:'Verbinde…', conn_online:'Verbunden', conn_offline:'Getrennt…', conn_unauth:'Nicht angemeldet',
@@ -633,6 +681,7 @@ const I18N = {
     blocked_busy:'In dieser Sitzung läuft bereits eine Aufgabe.',
     queued:'In Warteschlange — wird nach der aktuellen Aufgabe gesendet',
     load_more:'Ältere Nachrichten laden',
+    files:'Dateien', mic_unsupported:'Spracheingabe wird von diesem Browser nicht unterstützt',
   },
 };
 let LANG = 'zh-TW'; try { LANG = localStorage.getItem('lang') || 'zh-TW'; } catch {}
@@ -974,11 +1023,14 @@ function consumeEcho(id, text) {
 // non-web link to stream through /media with the session cwd as base.
 function rewriteLocalLinks(container) {
   const cwd = S[aid]?.cwd || '';
+  const b = cwd ? '&base=' + encodeURIComponent(cwd) : '';
   for (const a of container.querySelectorAll('a[href]')) {
     const h = a.getAttribute('href') || '';
     if (/^(https?:|mailto:|tel:|#)/i.test(h)) continue;                 // real web links
-    if (/^\/(media|proxy|uploads)\b/.test(h)) continue;                 // already ours
-    a.href = '/media?path=' + encodeURIComponent(h) + (cwd ? '&base=' + encodeURIComponent(cwd) : '');
+    if (/^\/(media|proxy|uploads|viewer)\b/.test(h)) continue;          // already ours
+    // markdown/text docs open in the styled reader; everything else streams via /media
+    a.href = (/\.(md|markdown|txt|log)$/i.test(h) ? '/viewer.html?path=' : '/media?path=')
+      + encodeURIComponent(h) + b;
     a.target = '_blank'; a.rel = 'noopener';
   }
 }
@@ -1209,7 +1261,10 @@ function connect() {
       let saved = null; try { saved = localStorage.getItem('lastSession'); } catch {}
       for (const s of msg.sessions||[]) upsert(s.sessionId, s.projectName, s.cwd, s.kind, s.lastModified);
       busy.clear(); for (const k of msg.busy || []) busy.add(k);
-      selectBestSession(msg.sessions||[], saved);   // picks one → lazy-loads its history
+      // a push-notification deep link (?session=…) wins over the last-used one
+      const deep = new URLSearchParams(location.search).get('session');
+      if (deep && S[deep]) pick(deep);
+      else selectBestSession(msg.sessions||[], saved);
       updateBusyUI();
     }
     else if (msg.type === 'history') {
@@ -1338,6 +1393,78 @@ async function send() {
 function stopSpawn() {
   const key = (aid && busy.has(aid)) ? aid : (busy.has('__spawn__') ? '__spawn__' : null);
   ws?.send(JSON.stringify({ type: 'stop', key }));
+}
+
+// ── File browser ── lists a directory via /files; tap a dir to descend, tap a
+// file to open (md/txt → viewer, media → /media, others → download).
+let filesPath = null;
+function openFiles() {
+  $('files-modal').classList.add('open');
+  loadDir(S[aid]?.cwd || '');
+}
+function closeFiles() { $('files-modal').classList.remove('open'); }
+$('files-modal')?.addEventListener('click', e => { if (e.target.id === 'files-modal') closeFiles(); });
+
+function fmtSize(n) {
+  if (!n) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(0) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+async function loadDir(p) {
+  const list = $('files-list');
+  list.innerHTML = `<div class="fempty">${T('loading')}</div>`;
+  try {
+    const r = await fetch('/files?path=' + encodeURIComponent(p || ''));
+    if (!r.ok) throw 0;
+    const data = await r.json();
+    filesPath = data.path;
+    $('files-crumb').textContent = data.path;
+    list.innerHTML = '';
+    if (data.parent != null) list.appendChild(fileRow({ name: '..', path: data.parent, dir: true }, true));
+    if (!data.items.length && data.parent == null) list.innerHTML = `<div class="fempty">—</div>`;
+    for (const it of data.items) list.appendChild(fileRow(it, false));
+  } catch { list.innerHTML = `<div class="fempty">✕</div>`; }
+}
+function fileRow(it, up) {
+  const el = document.createElement('div'); el.className = 'frow ' + (it.dir ? 'd' : 'f');
+  const icon = up ? 'ti-arrow-back-up' : it.dir ? 'ti-folder'
+    : /\.(png|jpe?g|gif|webp|svg)$/i.test(it.name) ? 'ti-photo'
+    : /\.(mp3|wav|m4a|flac|ogg|opus|aac)$/i.test(it.name) ? 'ti-music'
+    : /\.(mp4|mov|webm)$/i.test(it.name) ? 'ti-video'
+    : /\.(md|markdown|txt|log)$/i.test(it.name) ? 'ti-file-text' : 'ti-file';
+  el.innerHTML = `<i class="ti ${icon}"></i><div class="finfo"><div class="fname">${esc(it.name)}</div>${!up && !it.dir ? `<div class="fmeta">${fmtSize(it.size)}</div>` : ''}</div>`;
+  el.onclick = () => {
+    if (it.dir) return loadDir(it.path);
+    const b = filesPath ? '&base=' + encodeURIComponent(filesPath) : '';
+    const enc = encodeURIComponent(it.path);
+    if (/\.(md|markdown|txt|log)$/i.test(it.name)) window.open('/viewer.html?path=' + enc + b, '_blank');
+    else window.open('/media?path=' + enc + '&download=1', '_blank');
+  };
+  return el;
+}
+
+// ── Voice input (Web Speech API) — dictate into the prompt box ──
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null, recording = false;
+const SPEECH_LOCALE = { 'zh-TW':'zh-TW','zh-CN':'zh-CN',en:'en-US',ja:'ja-JP',ko:'ko-KR',es:'es-ES',fr:'fr-FR',de:'de-DE' };
+function toggleMic() {
+  if (!SpeechRec) { alert(T('mic_unsupported')); return; }
+  if (recording) { recog?.stop(); return; }
+  recog = new SpeechRec();
+  recog.lang = SPEECH_LOCALE[LANG] || 'en-US';
+  recog.interimResults = true; recog.continuous = false;
+  const baseText = $('prompt').value;
+  recog.onresult = e => {
+    let txt = '';
+    for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+    $('prompt').value = (baseText ? baseText + ' ' : '') + txt;
+    $('prompt').dispatchEvent(new Event('input'));
+  };
+  recog.onend = () => { recording = false; $('btn-mic').classList.remove('rec'); };
+  recog.onerror = () => { recording = false; $('btn-mic').classList.remove('rec'); };
+  recording = true; $('btn-mic').classList.add('rec');
+  recog.start();
 }
 
 $('prompt').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
@@ -1488,6 +1615,7 @@ function applyLang(l) {
   $('sb-head').textContent = T('sessions');
   $('sheet-head').textContent = T('sessions');
   const se = $('sheet-empty'); if (se) se.textContent = T('detecting');
+  const fl = $('files-label'); if (fl) fl.textContent = T('files');
   const setOpts = (id, map) => { for (const o of $(id).options) if (map[o.value]) o.textContent = T(map[o.value]); };
   setOpts('perm-mode', { interactive:'perm_interactive', acceptEdits:'perm_acceptEdits', bypassPermissions:'perm_bypass', plan:'perm_plan' });
   setOpts('model-sel', { default:'model_default' });
@@ -1498,6 +1626,15 @@ function applyLang(l) {
 }
 $('lang-sel').addEventListener('change', () => applyLang($('lang-sel').value));
 applyLang(LANG);
+if (!SpeechRec) $('btn-mic').style.display = 'none';   // hide mic where unsupported
+
+// Focusing an already-open PWA window from a push tap → jump to that session.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    const sid = e.data?.type === 'open-session' && e.data.sessionId;
+    if (sid && S[sid]) pick(sid);
+  });
+}
 
 (async () => {
   if (!(await ensureAuth())) return;

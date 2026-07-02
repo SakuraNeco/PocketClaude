@@ -17,10 +17,14 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const sid = e.notification.data?.sessionId || '';
+  const url = sid ? '/?session=' + encodeURIComponent(sid) : '/';
   e.waitUntil((async () => {
     const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of all) { if ('focus' in c) return c.focus(); }
-    if (clients.openWindow) return clients.openWindow('/');
+    for (const c of all) {
+      if ('focus' in c) { try { c.postMessage({ type: 'open-session', sessionId: sid }); } catch {} return c.focus(); }
+    }
+    if (clients.openWindow) return clients.openWindow(url);
   })());
 });
 

@@ -143,7 +143,7 @@ app.use(express.json());
 
 // The shell (no secrets) loads without auth so the login screen can render;
 // every other route — API, WS, /media, /proxy, /uploads — requires the token.
-const PUBLIC_PATHS = new Set(['/', '/index.html', '/manifest.json', '/sw.js', '/icon.svg', '/auth']);
+const PUBLIC_PATHS = new Set(['/', '/index.html', '/viewer.html', '/manifest.json', '/sw.js', '/icon.svg', '/auth']);
 app.use((req, res, next) => {
   if (PUBLIC_PATHS.has(req.path)) return next();
   if (tokenOk(reqToken(req))) return next();
@@ -772,6 +772,31 @@ app.get('/media', (req, res) => {
     fs.createReadStream(abs).pipe(res);
   }
 });
+// List a directory (for the file browser). Confined to the user's home dir,
+// like /media. Returns dirs first, then files, each with size/mtime.
+app.get('/files', (req, res) => {
+  const home = os.homedir();
+  const underHome = p => {
+    const a = process.platform === 'win32' ? p.toLowerCase() : p;
+    const h = process.platform === 'win32' ? home.toLowerCase() : home;
+    return a === h || a.startsWith(h + path.sep);
+  };
+  let dir; try { dir = path.resolve(req.query.path || home); } catch { return res.status(400).json({ error: 'bad path' }); }
+  if (!underHome(dir)) return res.status(403).json({ error: 'outside home' });
+  let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return res.status(404).json({ error: 'not a directory' }); }
+  const items = [];
+  for (const e of ents) {
+    if (e.name.startsWith('.') || e.name === 'node_modules') continue;   // skip dotfiles / deps clutter
+    const full = path.join(dir, e.name);
+    let size = 0, mtime = 0;
+    try { const st = fs.statSync(full); size = st.size; mtime = st.mtimeMs; } catch {}
+    items.push({ name: e.name, path: full, dir: e.isDirectory(), size, mtime });
+  }
+  items.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+  const parent = path.dirname(dir);
+  res.json({ path: dir, parent: (parent !== dir && underHome(parent)) ? parent : null, items });
+});
+
 app.post('/run', (req, res) => {
   if (!req.body.prompt) return res.status(400).json({ error: 'prompt required' });
   startClaude(req.body.cwd, req.body.prompt);
