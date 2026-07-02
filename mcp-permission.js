@@ -13,7 +13,9 @@ const send = o => process.stdout.write(JSON.stringify(o) + '\n');
 // doesn't hang the agent; it just skips that tool call.
 function askServer(toolName, input) {
   return new Promise(resolve => {
-    const body = JSON.stringify({ tool_name: toolName, input });
+    // CC_SESSION identifies which spawn this MCP instance belongs to, so the
+    // server can route the prompt to the right conversation (spawns run in parallel).
+    const body = JSON.stringify({ tool_name: toolName, input, session: process.env.CC_SESSION || '' });
     const req = http.request({
       host: '127.0.0.1', port: PORT, path: '/mcp-permission', method: 'POST',
       headers: {

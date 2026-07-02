@@ -180,6 +180,8 @@ body{
 
 /* Lazy-load placeholder */
 .loading-note{margin:auto;color:var(--text3);font-size:13px;padding:30px;text-align:center;}
+.load-more{align-self:center;margin:6px 0 10px;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);border-radius:14px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit;}
+.load-more:active{background:var(--bg3);}
 
 /* Generated media (audio/video/image/file) in a Claude bubble */
 .media-box{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
@@ -481,7 +483,9 @@ const I18N = {
     ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
     ios_alert:'iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。',
     blocked_self:'不能從網頁操控 PocketClaude 自己的對話 — 它會重啟並殺掉這個伺服器。請改選其他 session。',
-    blocked_busy:'已有另一個任務進行中，請先按「停止」或等它完成。',
+    blocked_busy:'這個 session 已有任務進行中。',
+    queued:'已排隊 — 任務結束後自動送出',
+    load_more:'載入更早的訊息',
   },
   en: {
     conn_connecting:'Connecting…', conn_online:'Connected', conn_offline:'Disconnected…', conn_unauth:'Not signed in',
@@ -500,7 +504,9 @@ const I18N = {
     ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
     ios_alert:'On iPhone, add this site to your Home Screen (Share → Add to Home Screen) and open it from there to enable push notifications.',
     blocked_self:"Can't control PocketClaude's own session from the web — it would restart and kill this very server. Pick another session.",
-    blocked_busy:'Another task is already running — press Stop or wait for it to finish.',
+    blocked_busy:'A task is already running in this session.',
+    queued:'Queued — will send when the current task finishes',
+    load_more:'Load earlier messages',
   },
   ja: {
     conn_connecting:'接続中...', conn_online:'接続済み', conn_offline:'切断...', conn_unauth:'未ログイン',
@@ -519,7 +525,9 @@ const I18N = {
     ios_install:'iPhone：共有 → ホーム画面に追加してから開くと通知が使えます',
     ios_alert:'iPhone では先にこのサイトを「共有 → ホーム画面に追加」し、ホーム画面から開くと通知を有効にできます。',
     blocked_self:'PocketClaude 自身のセッションはウェブから操作できません — サーバーが再起動して落ちます。別のセッションを選んでください。',
-    blocked_busy:'別のタスクが実行中です。「停止」を押すか完了を待ってください。',
+    blocked_busy:'このセッションではタスクが実行中です。',
+    queued:'キュー追加 — タスク完了後に自動送信',
+    load_more:'過去のメッセージを読み込む',
   },
   'zh-CN': {
     conn_connecting:'连接中...', conn_online:'已连接', conn_offline:'断线...', conn_unauth:'未登录',
@@ -538,7 +546,9 @@ const I18N = {
     ios_install:'iPhone：点「分享 → 添加到主屏幕」，从主屏幕打开才能开推送',
     ios_alert:'iPhone 上要先把这个网站「分享 → 添加到主屏幕」，再从主屏幕图标打开，才能启用推送。',
     blocked_self:'不能从网页操控 PocketClaude 自己的会话 — 它会重启并杀掉这个服务器。请改选其他会话。',
-    blocked_busy:'已有另一个任务进行中，请先点「停止」或等它完成。',
+    blocked_busy:'这个会话已有任务进行中。',
+    queued:'已排队 — 任务结束后自动发送',
+    load_more:'加载更早的消息',
   },
   ko: {
     conn_connecting:'연결 중...', conn_online:'연결됨', conn_offline:'연결 끊김...', conn_unauth:'미로그인',
@@ -557,7 +567,9 @@ const I18N = {
     ios_install:'iPhone: 공유 → 홈 화면에 추가 후, 홈 화면에서 열면 알림을 켤 수 있어요',
     ios_alert:'iPhone에서는 먼저 이 사이트를 「공유 → 홈 화면에 추가」하고 홈 화면 아이콘으로 열어야 알림을 켤 수 있습니다.',
     blocked_self:'PocketClaude 자신의 세션은 웹에서 제어할 수 없습니다 — 서버가 재시작되어 죽습니다. 다른 세션을 선택하세요.',
-    blocked_busy:'다른 작업이 진행 중입니다. 「중지」를 누르거나 완료를 기다리세요.',
+    blocked_busy:'이 세션에서 이미 작업이 실행 중입니다.',
+    queued:'대기열에 추가됨 — 작업이 끝나면 자동 전송',
+    load_more:'이전 메시지 불러오기',
   },
   es: {
     conn_connecting:'Conectando…', conn_online:'Conectado', conn_offline:'Desconectado…', conn_unauth:'Sin acceso',
@@ -576,7 +588,9 @@ const I18N = {
     ios_install:'iPhone: Compartir → Añadir a pantalla de inicio, y ábrelo desde ahí para activar las notificaciones',
     ios_alert:'En iPhone, añade este sitio a tu pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde ahí para activar las notificaciones.',
     blocked_self:'No se puede controlar la propia sesión de PocketClaude desde la web — reiniciaría y mataría este servidor. Elige otra sesión.',
-    blocked_busy:'Ya hay otra tarea en curso — pulsa Detener o espera a que termine.',
+    blocked_busy:'Ya hay una tarea en curso en esta sesión.',
+    queued:'En cola — se enviará al terminar la tarea actual',
+    load_more:'Cargar mensajes anteriores',
   },
   fr: {
     conn_connecting:'Connexion…', conn_online:'Connecté', conn_offline:'Déconnecté…', conn_unauth:'Non connecté',
@@ -595,7 +609,9 @@ const I18N = {
     ios_install:'iPhone : Partager → Sur l\'écran d\'accueil, puis ouvrez depuis là pour activer les notifications',
     ios_alert:'Sur iPhone, ajoutez ce site à votre écran d\'accueil (Partager → Sur l\'écran d\'accueil) et ouvrez-le depuis là pour activer les notifications.',
     blocked_self:'Impossible de contrôler la propre session de PocketClaude depuis le web — cela redémarrerait et tuerait ce serveur. Choisissez une autre session.',
-    blocked_busy:'Une autre tâche est déjà en cours — appuyez sur Arrêter ou attendez la fin.',
+    blocked_busy:'Une tâche est déjà en cours dans cette session.',
+    queued:'En file — envoyé à la fin de la tâche en cours',
+    load_more:'Charger les messages précédents',
   },
   de: {
     conn_connecting:'Verbinde…', conn_online:'Verbunden', conn_offline:'Getrennt…', conn_unauth:'Nicht angemeldet',
@@ -614,7 +630,9 @@ const I18N = {
     ios_install:'iPhone: Teilen → Zum Home-Bildschirm, dann von dort öffnen, um Push zu aktivieren',
     ios_alert:'Auf dem iPhone diese Seite zuerst zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen, um Push-Benachrichtigungen zu aktivieren.',
     blocked_self:'PocketClaudes eigene Sitzung kann nicht über das Web gesteuert werden — der Server würde neu starten und sich selbst beenden. Wähle eine andere Sitzung.',
-    blocked_busy:'Eine andere Aufgabe läuft bereits — drücke Stopp oder warte, bis sie fertig ist.',
+    blocked_busy:'In dieser Sitzung läuft bereits eine Aufgabe.',
+    queued:'In Warteschlange — wird nach der aktuellen Aufgabe gesendet',
+    load_more:'Ältere Nachrichten laden',
   },
 };
 let LANG = 'zh-TW'; try { LANG = localStorage.getItem('lang') || 'zh-TW'; } catch {}
@@ -733,10 +751,18 @@ async function uploadImages() {
 }
 
 // ── State ──
-const S = {}; let aid = null, spawning = false, ws;
+const S = {}; let aid = null, ws;
+const busy = new Set();   // spawn keys (sessionId or '__spawn__') currently running
 const $ = id => document.getElementById(id);
 let connKey = 'conn_connecting';
 function setConn(k) { connKey = k; $('nav-conn').textContent = T(k); }
+
+// Reflect the ACTIVE session's busy state (each session runs independently).
+function updateBusyUI() {
+  const b = aid ? busy.has(aid) : false;
+  $('btn-stop').style.display = b ? 'flex' : 'none';
+  if (!b) hideTyping();
+}
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const base = p => p ? p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p : '';
 const SKIP = /^<(task-notification|system-reminder|system|command-name)/;
@@ -801,6 +827,8 @@ function pick(id) {
   $('target-name').textContent = s.name;
   if (!s.loaded && !s.loading) requestHistory(id);   // lazy-load this conversation
   renderAll(id);
+  updateBusyUI();
+  if (busy.has(id)) showTyping();
 }
 
 function requestHistory(id) {
@@ -879,8 +907,20 @@ function renderAll(id) {
   msgs.innerHTML = ''; hideTyping();
   const s = S[id];
   if (s && !s.loaded && s.loading) { msgs.innerHTML = `<div class="loading-note">${T('loading')}</div>`; return; }
+  if (s?.loaded && s.histOffset > 0) {
+    const b = document.createElement('button'); b.className = 'load-more';
+    b.textContent = T('load_more'); b.onclick = () => loadMore(id);
+    msgs.appendChild(b);
+  }
   for (const m of s?.msgs || []) appendEl(buildMsg(m));
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function loadMore(id) {
+  const s = S[id];
+  if (!s || s.loadingMore) return;
+  s.loadingMore = true;
+  try { ws?.send(JSON.stringify({ type: 'get_history', sessionId: id, before: s.histOffset })); } catch { s.loadingMore = false; }
 }
 
 function push(id, m) {
@@ -1049,9 +1089,8 @@ function buildSpecialTool(m) {
   return null;
 }
 
-// Click an option → send it as a reply to the active session.
+// Click an option → send it as a reply to the active session (queues if busy).
 function answerOption(label) {
-  if (spawning) return;
   $('prompt').value = label;
   send();
 }
@@ -1169,16 +1208,34 @@ function connect() {
     if (msg.type === 'init') {
       let saved = null; try { saved = localStorage.getItem('lastSession'); } catch {}
       for (const s of msg.sessions||[]) upsert(s.sessionId, s.projectName, s.cwd, s.kind, s.lastModified);
+      busy.clear(); for (const k of msg.busy || []) busy.add(k);
       selectBestSession(msg.sessions||[], saved);   // picks one → lazy-loads its history
-      setSpawn(msg.spawnRunning);
+      updateBusyUI();
     }
     else if (msg.type === 'history') {
       const s = S[msg.sessionId]; if (!s) return;
-      s.msgs = []; s.loaded = true; s.loading = false;
-      bulkLoading = true;
-      for (const ev of msg.history||[]) parseEv(msg.sessionId, ev);
-      bulkLoading = false;
-      if (msg.sessionId === aid) renderAll(msg.sessionId);
+      if (msg.prepend) {
+        // an older page arrived: parse into a scratch list, then prepend
+        const newer = s.msgs;
+        s.msgs = []; s.loadingMore = false;
+        bulkLoading = true;
+        for (const ev of msg.history||[]) parseEv(msg.sessionId, ev);
+        bulkLoading = false;
+        s.msgs = [...s.msgs, ...newer];
+        s.histOffset = msg.offset || 0;
+        if (msg.sessionId === aid) {
+          const prevH = msgs.scrollHeight;
+          renderAll(msg.sessionId);
+          msgs.scrollTop = msgs.scrollHeight - prevH;   // keep the viewport anchored
+        }
+      } else {
+        s.msgs = []; s.loaded = true; s.loading = false;
+        s.histOffset = msg.offset || 0;
+        bulkLoading = true;
+        for (const ev of msg.history||[]) parseEv(msg.sessionId, ev);
+        bulkLoading = false;
+        if (msg.sessionId === aid) renderAll(msg.sessionId);
+      }
     }
     else if (msg.type === 'active_session') upsert(msg.sessionId, msg.projectName || base(msg.cwd), msg.cwd, msg.kind, msg.lastModified);
     else if (msg.type === 'session_attached') {
@@ -1193,11 +1250,20 @@ function connect() {
       if (S[msg.sessionId]?.loaded) parseEv(msg.sessionId, msg.event);   // live update
       else if (msg.sessionId !== aid) bump(msg.sessionId);               // not loaded → just flag activity
     }
-    else if (msg.type === 'spawn_start') { setSpawn(true); if (aid) showTyping(); }
-    else if (msg.type === 'spawn_end') { setSpawn(false); hideTyping(); }
+    else if (msg.type === 'spawn_start') {
+      const key = msg.key || msg.resumeSessionId || '__spawn__';
+      busy.add(key); updateBusyUI();
+      if (key === aid) showTyping();
+    }
+    else if (msg.type === 'spawn_end') {
+      const key = msg.key || msg.resumeSessionId || '__spawn__';
+      busy.delete(key); updateBusyUI();
+      // flush this session's queue: one message per finished turn
+      const q = S[key]?.queue;
+      if (q && q.length) { try { ws.send(JSON.stringify(q.shift())); } catch {} }
+    }
     else if (msg.type === 'spawn_blocked') {
-      setSpawn(false); hideTyping();
-      // server sends a reasonKey we translate locally (msg.reason kept as fallback)
+      // the NEW spawn didn't start; whatever was running keeps running — don't touch busy
       push(msg.sessionId || aid, { type: 'sys', text: '⛔ ' + (msg.reasonKey ? T(msg.reasonKey) : msg.reason) });
     }
     else if (msg.type === 'permission_request') {
@@ -1225,20 +1291,13 @@ function connect() {
   };
 }
 
-function setSpawn(r) {
-  spawning = r;
-  $('btn-stop').style.display = r ? 'flex' : 'none';
-  $('btn-send').disabled = r;
-  if (!r) hideTyping();
-}
-
 async function send() {
   const txt = $('prompt').value.trim();
   const hasImgs = pendingImages.filter(Boolean).length > 0;
   if (!txt && !hasImgs) return;
-  if (spawning) return;
 
   const resumeSessionId = (aid && aid !== '__spawn__') ? aid : null;
+  const key = resumeSessionId || '__spawn__';
 
   // Upload images first
   const imgPaths = hasImgs ? await uploadImages() : [];
@@ -1250,26 +1309,36 @@ async function send() {
   const permissionMode = $('perm-mode')?.value || 'default';
   const model = $('model-sel')?.value || 'default';
   const effort = $('effort-sel')?.value || 'default';
-  ws.send(JSON.stringify({ type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model, effort }));
+  const payload = { type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model, effort };
 
   if (resumeSessionId) {
     // Optimistic echo (nice thumbnails). Remember the exact transcript text so
     // the file-watcher copy of this same message gets suppressed (consumeEcho).
     (S[resumeSessionId].pendingEcho ||= []).push(fullText.trim());
     push(resumeSessionId, { type: 'user', text: txt, images: imgPaths });
-    showTyping();
   } else {
     // Fresh spawn: its replies stream under the '__spawn__' pseudo-session —
     // create/select it so the conversation is actually visible.
     if (!S['__spawn__']) { upsert('__spawn__', T('new_chat'), '', 'spawn'); S['__spawn__'].loaded = true; }
     pick('__spawn__');
     push('__spawn__', { type: 'user', text: txt, images: imgPaths });
-    showTyping();
+  }
+
+  if (busy.has(key)) {
+    // session is mid-task → queue; spawn_end flushes one message per turn
+    (S[key].queue ||= []).push(payload);
+    push(key, { type: 'sys', text: T('queued') });
+  } else {
+    ws.send(JSON.stringify(payload));
+    if (key === aid) showTyping();
   }
   $('prompt').value = ''; $('prompt').style.height = '';
 }
 
-function stopSpawn() { ws?.send(JSON.stringify({ type: 'stop' })); }
+function stopSpawn() {
+  const key = (aid && busy.has(aid)) ? aid : (busy.has('__spawn__') ? '__spawn__' : null);
+  ws?.send(JSON.stringify({ type: 'stop', key }));
+}
 
 $('prompt').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('prompt').addEventListener('input', () => { $('prompt').style.height=''; $('prompt').style.height=Math.min($('prompt').scrollHeight,140)+'px'; });

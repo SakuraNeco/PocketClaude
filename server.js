@@ -151,20 +151,23 @@ function saveSubs() {
 }
 
 const connectedClients = new Set();
-let activeClaudeProcess = null;
-let activeSpawnSessionId = null;   // which session the running spawn belongs to (routes permission prompts)
+
+// One spawn PER SESSION may run concurrently (key: resumeSessionId or
+// '__spawn__' for a fresh chat). Each entry: { proc, mcpConfig }.
+const activeSpawns = new Map();
 
 // Kill the whole process tree — on Windows, proc.kill() leaves claude's
 // children (node subprocesses, shells) running.
-function killActive() {
-  const p = activeClaudeProcess;
-  if (!p) return;
+function killTree(proc) {
+  if (!proc) return;
   if (process.platform === 'win32') {
-    try { execSync(`taskkill /PID ${p.pid} /T /F`, { stdio: 'ignore' }); } catch { try { p.kill(); } catch {} }
+    try { execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' }); } catch { try { proc.kill(); } catch {} }
   } else {
-    try { p.kill(); } catch {}
+    try { proc.kill(); } catch {}
   }
 }
+function killSpawn(key) { killTree(activeSpawns.get(key)?.proc); }
+function killAllSpawns() { for (const s of activeSpawns.values()) killTree(s.proc); }
 
 // Track tailed JSONL files: sessionId -> { path, size }
 const tailedSessions = new Map();
@@ -461,13 +464,17 @@ const PERM_MODES = new Set(['default', 'acceptEdits', 'bypassPermissions', 'plan
 const MODELS = new Set(['fable', 'opus', 'sonnet', 'haiku']);   // 'default' → don't pass --model
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);   // 'default' → don't pass --effort
 
-// MCP config for the interactive permission-prompt tool (written once at startup).
-const MCP_CONFIG_PATH = path.join(__dirname, '.mcp-permission.json');
-try {
-  fs.writeFileSync(MCP_CONFIG_PATH, JSON.stringify({
-    mcpServers: { ccperm: { type: 'stdio', command: process.execPath, args: [path.join(__dirname, 'mcp-permission.js')], env: { CC_PORT: String(PORT), CC_TOKEN: AUTH_TOKEN } } },
+// MCP config for the interactive permission-prompt tool. Written PER SPAWN so
+// each config carries CC_SESSION — with parallel spawns the /mcp-permission
+// POST must say which session it belongs to (the MCP process itself is the
+// only thing that knows).
+function writeMcpConfig(key) {
+  const p = path.join(__dirname, `.mcp-perm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`);
+  fs.writeFileSync(p, JSON.stringify({
+    mcpServers: { ccperm: { type: 'stdio', command: process.execPath, args: [path.join(__dirname, 'mcp-permission.js')], env: { CC_PORT: String(PORT), CC_TOKEN: AUTH_TOKEN, CC_SESSION: key } } },
   }));
-} catch {}
+  return p;
+}
 
 // Pending interactive permission prompts: id -> { res, timer }
 const pendingPerms = new Map();
@@ -486,18 +493,21 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
     return;
   }
 
-  // One spawn at a time — refuse loudly instead of silently killing the
-  // other session's running task (which is what the old code did).
-  if (activeClaudeProcess) {
-    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId, reasonKey: 'blocked_busy',
-      reason: '已有另一個任務進行中，請先按「停止」或等它完成。' });
+  // One spawn per SESSION — a second send to the same session is refused
+  // (the client queues it instead); other sessions run in parallel.
+  const key = resumeSessionId || '__spawn__';
+  if (activeSpawns.has(key)) {
+    broadcast({ type: 'spawn_blocked', sessionId: resumeSessionId, key, reasonKey: 'blocked_busy',
+      reason: '這個 session 已有任務進行中。' });
     return;
   }
 
   const args = ['--output-format', 'stream-json', '--verbose'];
+  let mcpConfig = null;
   if (permissionMode === 'interactive') {
     // route every permission decision to the phone via our MCP approve tool
-    args.push('--permission-mode', 'default', '--mcp-config', MCP_CONFIG_PATH, '--permission-prompt-tool', 'mcp__ccperm__approve');
+    mcpConfig = writeMcpConfig(key);
+    args.push('--permission-mode', 'default', '--mcp-config', mcpConfig, '--permission-prompt-tool', 'mcp__ccperm__approve');
   } else if (permissionMode === 'bypassPermissions') {
     args.push('--dangerously-skip-permissions');           // canonical flag, all versions
   } else if (permissionMode && PERM_MODES.has(permissionMode)) {
@@ -511,9 +521,8 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   // Use cwd from tailed session if resuming
   const effectiveCwd = cwd || (resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd) || process.cwd();
   const proc = spawn(CLAUDE_PATH, args, { cwd: effectiveCwd, env: process.env });
-  activeClaudeProcess = proc;
-  activeSpawnSessionId = resumeSessionId || null;
-  broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId });
+  activeSpawns.set(key, { proc, mcpConfig });
+  broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
 
   proc.stdout.on('data', chunk => {
     // When resuming, JSONL file watcher already picks up new events — skip stdout to avoid duplicates
@@ -525,11 +534,11 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   });
   proc.stderr.on('data', chunk => broadcast({ type: 'spawn_stderr', text: chunk.toString() }));
   proc.on('close', code => {
-    activeClaudeProcess = null;
-    activeSpawnSessionId = null;
-    broadcast({ type: 'spawn_end', code, resumeSessionId });
+    activeSpawns.delete(key);
+    if (mcpConfig) { try { fs.unlinkSync(mcpConfig); } catch {} }
+    broadcast({ type: 'spawn_end', code, resumeSessionId, key });
     const s = resumeSessionId && tailedSessions.get(resumeSessionId);
-    sendPush('done', s ? path.basename(s.cwd || '') : '');
+    sendPush('done', s ? path.basename(s.cwd || '') : '', { sessionId: resumeSessionId || '' });
   });
 }
 
@@ -553,17 +562,24 @@ wss.on('connection', (ws, req) => {
       lastModified,
     });
   }
-  ws.send(JSON.stringify({ type: 'init', sessions, spawnRunning: !!activeClaudeProcess }));
+  ws.send(JSON.stringify({ type: 'init', sessions, busy: [...activeSpawns.keys()] }));
 
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
     if (msg.type === 'send') startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort);
-    else if (msg.type === 'stop' && activeClaudeProcess) killActive();
+    else if (msg.type === 'stop') { if (msg.sessionId || msg.key) killSpawn(msg.key || msg.sessionId); else killAllSpawns(); }
     else if (msg.type === 'get_history') {
+      // Paged: default = latest 300 events; `before` (an index into the history
+      // array, from a previous response's `offset`) pages further back.
       const s = tailedSessions.get(msg.sessionId);
-      // last 300 renderable events is plenty for a phone screen; a full history
-      // can be thousands of events / tens of MB and freezes the client
-      ws.send(JSON.stringify({ type: 'history', sessionId: msg.sessionId, history: (s?.history || []).slice(-300) }));
+      const h = s?.history || [];
+      const before = Number.isInteger(msg.before) && msg.before >= 0 ? Math.min(msg.before, h.length) : h.length;
+      const start = Math.max(0, before - 300);
+      ws.send(JSON.stringify({
+        type: 'history', sessionId: msg.sessionId,
+        history: h.slice(start, before), offset: start, total: h.length,
+        prepend: Number.isInteger(msg.before),
+      }));
     }
     else if (msg.type === 'permission_decision') {
       const p = pendingPerms.get(msg.id);
@@ -694,16 +710,18 @@ app.post('/run', (req, res) => {
   startClaude(req.body.cwd, req.body.prompt);
   res.json({ ok: true });
 });
-app.post('/stop', (_, res) => { killActive(); res.json({ ok: true }); });
+app.post('/stop', (_, res) => { killAllSpawns(); res.json({ ok: true }); });
 app.get('/status', (_, res) => res.json({
-  spawnRunning: !!activeClaudeProcess,
+  spawnRunning: activeSpawns.size > 0,
+  running: [...activeSpawns.keys()],
   sessions: [...tailedSessions.keys()],
 }));
 
 // The MCP permission tool calls this; we ask the phone and hold the response
 // until the user decides (or a timeout auto-denies so the agent never hangs).
 app.post('/mcp-permission', (req, res) => {
-  const { tool_name, input } = req.body || {};
+  const { tool_name, input, session } = req.body || {};
+  const sessionId = session && session !== '__spawn__' ? session : null;
   const id = 'perm' + (++permSeq);
   const timer = setTimeout(() => {
     if (pendingPerms.has(id)) {
@@ -713,8 +731,8 @@ app.post('/mcp-permission', (req, res) => {
     }
   }, 120000);
   pendingPerms.set(id, { res, timer });
-  broadcast({ type: 'permission_request', id, sessionId: activeSpawnSessionId, toolName: tool_name || 'tool', input: input || {} });
-  sendPush('perm', tool_name || 'tool');
+  broadcast({ type: 'permission_request', id, sessionId, toolName: tool_name || 'tool', input: input || {} });
+  sendPush('perm', tool_name || 'tool', { sessionId: sessionId || '' });
 });
 
 // Reverse-proxy a local dev server so the phone can view it: /proxy/<port>/...
@@ -756,6 +774,13 @@ app.use('/proxy', (req, res) => {
   preq.on('error', e => { if (!res.headersSent) res.status(502).end('proxy error: ' + e.message); });
   req.pipe(preq);
 });
+
+// Clean up per-spawn MCP configs left behind by a crash.
+try {
+  for (const f of fs.readdirSync(__dirname)) {
+    if (/^\.mcp-perm-.*\.json$/.test(f) || f === '.mcp-permission.json') fs.unlinkSync(path.join(__dirname, f));
+  }
+} catch {}
 
 watchSessions();
 

@@ -6,6 +6,8 @@ node_modules/
 .vapid.json
 .push-subs.json
 .mcp-permission.json
+.mcp-perm-*.json
+.audit.log
 .auth-token
 
 # user uploads & logs
