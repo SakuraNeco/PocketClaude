@@ -1,6 +1,6 @@
 # PocketClaude
 
-**繁體中文** · [English](README.en.md)
+**繁體中文** · [简体中文](README.zh-CN.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
 從**手機 / 任何瀏覽器遠端監看並操控你電腦上的 Claude Code session** 的自架 PWA。
 用你本機已登入的 `claude` CLI 跑（吃 Max/Pro 訂閱，**不額外花 API 費用**），再透過 Cloudflare 通道從外面連進來。
