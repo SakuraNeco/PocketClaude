@@ -1,15 +1,21 @@
 # PocketClaude
 
+**繁體中文** · [English](README.en.md)
+
 從**手機 / 任何瀏覽器遠端監看並操控你電腦上的 Claude Code session** 的自架 PWA。
 用你本機已登入的 `claude` CLI 跑（吃 Max/Pro 訂閱，**不額外花 API 費用**），再透過 Cloudflare 通道從外面連進來。
 
 - 即時看所有 Claude Code 對話的進度
 - 從手機送指令繼續某個對話、或開新對話
 - **逐項核准**：Claude 要動任何工具前，推播到手機讓你按允許/拒絕
+- **多任務並行**：不同 session 可同時跑；忙碌中的 session 會把後續訊息排隊
 - 密鑰登入保護（首次啟動自動生成）
 - 漂亮的 Markdown 渲染（DOMPurify 消毒）、程式碼高亮、貼圖/選圖
 - 看 Claude 產出的圖片/音樂/影片/PDF、一鍵在手機開 dev server 預覽
-- 可裝成 App、任務完成時推播通知
+- 內建檔案瀏覽器 + Markdown 閱讀視圖
+- **8 種介面語言**、明暗主題、思考深度調整、語音輸入
+- 可裝成 App、任務完成時推播通知（依裝置語言）
+- 離線 / 防火牆內也能用（資源全部自架，不依賴 CDN）
 
 > ⚠️ **它控制的是「跑它的那台機器」。** 在 A 電腦跑，就只能控制 A 電腦的 Claude。它讀本機的 `~/.claude` 並呼叫本機的 `claude` CLI。
 
@@ -86,10 +92,13 @@ npm run tunnel
   | 完全自動 `bypassPermissions` | 全部放行，最能用但最不設防 |
   | 規劃模式 `plan` | 只規劃不動手 |
 - **模型**：預設 / Fable 5 / Opus / Sonnet / Haiku（別名自動對到各級最新版）。
+- **思考深度**：預設 / 低 / 中 / 高 / 極高 / 最大。
+- 右上角可切換**介面語言**（8 種）與**明暗主題**；輸入框旁有**語音輸入**鈕。
+- 側欄的**檔案**鈕可瀏覽 session 目錄，`.md` 會用內建閱讀視圖開啟。
 
 ### 注意事項 / 已知限制
 
-- **一次跑一個任務**：有任務進行中時再送會被擋下，先按「停止」。
+- **每個 session 一次跑一個任務**：忙碌中再送同一個會自動排隊，任務結束後接續送出；不同 session 可並行。
 - **不能用網頁操控 PocketClaude 自己那個對話**：會把伺服器重啟殺掉，已自動擋下。
 - 對「**此刻正開在桌面**的對話」送訊息，內容會寫進檔案、但不會即時跳進那個桌面視窗，要重開才看得到。
 - **伺服器沒有自動重啟**：關終端機 / 重開機 / 當掉就停了。要常駐請自行用 `pm2`、`launchd`(mac)、工作排程器(win) 等顧著。
@@ -97,10 +106,12 @@ npm run tunnel
 ## 安全設計
 
 - 除了 PWA 外殼，**所有 API / WebSocket / 檔案串流 / 代理都要密鑰**（timing-safe 比對；憑證是 HttpOnly cookie）。
-- `/media` 檔案串流限制在使用者家目錄內（含路徑邊界檢查）。
+- `/media`、`/files` 限制在使用者家目錄內（含路徑邊界檢查）。
 - 逐項核准的橋接是 **fail-closed**：伺服器連不上一律拒絕，不會放行。
-- 所有 Markdown 輸出經 DOMPurify 消毒。
-- 系統暫存目錄下的 session 不會被列為可操控目標。
+- 所有 Markdown 輸出經 DOMPurify 消毒；文字檔（含 HTML）一律以 `text/plain` 提供。
+- `/proxy` 只能連到 session 內容出現過的 port（可用 `CC_PROXY_ALLOW` 追加）。
+- `/auth` 有暴力嘗試節流；系統暫存目錄下的 session 不會被列為可操控目標。
+- `.audit.log` 記錄登入、送出、停止、權限決定等操作。
 
 ## 環境變數（皆選填，見 `.env.example`）
 
@@ -109,9 +120,19 @@ npm run tunnel
 | `PORT` | 伺服器埠（預設 3000） |
 | `CLAUDE_PATH` | `claude` CLI 路徑（留空自動偵測） |
 | `CC_AUTH_TOKEN` | 登入密鑰（留空自動生成到 `.auth-token`） |
+| `CC_PROXY_ALLOW` | `/proxy` 額外允許的 port（逗號分隔） |
 | `VAPID_SUBJECT` | Web Push 聯絡信箱 `mailto:`（預設 placeholder） |
 
 VAPID 金鑰、登入密鑰、推播訂閱、上傳圖片都是**每台安裝各自產生**的，已被 `.gitignore` 排除、不會進版控。
+
+## 開發
+
+```bash
+npm test        # node --test — 純函式單元測試
+node --check server.js
+```
+
+CI 會在 Node 18/20/22 上跑語法檢查 + 測試。
 
 ## License
 

@@ -13,10 +13,12 @@ For a stable URL, use a Cloudflare named tunnel pointing at `http://localhost:30
 
 The server is a **plain process with no supervisor** — it dies on terminal close / reboot / crash and does NOT auto-restart. Start it detached if you want it to outlive a shell.
 
-## Architecture (two files do everything)
+## Architecture
 
-- **`server.js`** — Express + `ws` (WebSocket) + `web-push` (VAPID) + `multer`. Discovers sessions, tails their JSONL transcripts, broadcasts events over WS, and spawns `claude --resume … --print` on send.
-- **`public/index.html`** — single-file PWA (WS client, `marked` + `highlight.js`, session picker/bottom-sheet, image paste/attach, iOS-keyboard handling, permission selector, "傳送至" target indicator). `sw.js` = push + passthrough fetch (no caching). `manifest.json`, `icon.svg`.
+- **`server.js`** — Express + `ws` (WebSocket) + `web-push` (VAPID) + `multer`. Discovers sessions, tails their JSONL transcripts, broadcasts events over WS, and spawns `claude --resume … --print` on send. Pure helpers are exported and the boot block is guarded by `require.main === module` so `require()` (tests) is side-effect-free.
+- **`public/index.html`** — single-file PWA (WS client, self-hosted `marked` + `highlight.js` + `DOMPurify`, session picker/bottom-sheet, image paste/attach, iOS-keyboard handling, permission/model/effort selectors, 8-language i18n, light/dark theme, file browser, voice input). `viewer.html` = styled Markdown reader. `sw.js` = push + cache-first shell/vendor. `vendor/` = self-hosted libs + tabler-icons fonts. `manifest.json`, `icon.svg`.
+- **`mcp-permission.js`** — MCP stdio server for interactive per-tool approval (fail-closed).
+- **`test/server.test.js`** — `node --test` unit tests for the pure helpers; CI in `.github/workflows/ci.yml`.
 
 ## Session model (the core, non-obvious part)
 
@@ -28,9 +30,13 @@ Three kinds of sessions are discovered and tailed into `tailedSessions` (keyed b
 
 `session_event` / `session_attached` / `active_session` / `spawn_*` messages flow over WS; the client renders `user`/`assistant`/`result` lines.
 
+## Concurrency (added 2026-07)
+
+Spawns run **one per session, many sessions in parallel** — `activeSpawns` Map keyed by `resumeSessionId` (or `'__spawn__'` for a fresh chat), each entry `{ proc, mcpConfig }`. A second send to a busy session is refused (`spawn_blocked`/`blocked_busy`) and the **client queues it**, flushing one per `spawn_end`. `stop` targets a specific session's spawn. Each interactive spawn gets its **own** `.mcp-perm-<ts>.json` carrying `CC_SESSION` (env) so parallel permission prompts route to the right conversation via `/mcp-permission`'s `session` field. Process trees are killed with `taskkill /T` on Windows. `get_history` is **paged** (`before` offset → older 300 events, `prepend:true`); tool inputs truncated at 4 KB, unlabeled code blocks never `highlightAuto` (both were freeze sources).
+
 ## Auth (added 2026-07)
 
-Everything except the PWA shell (`/`, `/index.html`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/auth`) requires a shared secret: generated once into `.auth-token` (gitignored, printed at startup as `login key`), overridable via `CC_AUTH_TOKEN`. The client POSTs it to `/auth` → gets an HttpOnly `cc_auth` cookie (1 yr, `Secure` when behind https) which then covers fetch/WS/media/proxy/uploads automatically; the key itself sits in localStorage for silent re-auth. WS upgrades without a valid cookie/`?token=` are closed with code 4401 → client clears the stored key and re-prompts. `mcp-permission.js` authenticates to `/mcp-permission` via `CC_TOKEN` env (baked into `.mcp-permission.json` at startup) and is **fail-closed**: server unreachable / non-allow / unparsable response → deny. Markdown rendering is sanitized with DOMPurify (code-block copy buttons use a delegated `data-cb` listener since inline `onclick` gets stripped).
+Everything except the PWA shell (`/`, `/index.html`, `/viewer.html`, `/manifest.json`, `/sw.js`, `/icon.svg`, `/auth`) requires a shared secret: generated once into `.auth-token` (gitignored, printed at startup as `login key`), overridable via `CC_AUTH_TOKEN`. The client POSTs it to `/auth` → gets an HttpOnly `cc_auth` cookie (1 yr, `Secure` when behind https) which then covers fetch/WS/media/proxy/uploads automatically; the key itself sits in localStorage for silent re-auth. WS upgrades without a valid cookie/`?token=` are closed with code 4401 → client clears the stored key and re-prompts. `mcp-permission.js` authenticates to `/mcp-permission` via `CC_TOKEN` env (baked into `.mcp-permission.json` at startup) and is **fail-closed**: server unreachable / non-allow / unparsable response → deny. Markdown rendering is sanitized with DOMPurify (code-block copy buttons use a delegated `data-cb` listener since inline `onclick` gets stripped).
 
 ## Invariants — do not break these
 
@@ -53,7 +59,9 @@ Interactive tool cards (client): `ExitPlanMode` → markdown plan card, `TodoWri
 ## Viewing generated output on the phone
 
 - **Media**: `GET /media?path=<abs>[&base=<cwd>][&download=1]` streams a local file with HTTP Range (iOS audio/video seek), confined to the user's home dir. Resolution order: absolute → cwd-relative → recursive search under the session dir for a file whose path ends with the requested tail (handles root-relative paths like `/stills/x.png` living under a sub-project). The client auto-detects media paths in Claude's replies and renders inline `<audio>`/`<video>`/`<img>` + download links (`base` = active session cwd).
-- **Dev servers**: `app.use('/proxy', …)` reverse-proxies `/proxy/<port>/…` to `127.0.0.1:<port>`. HTML gets a `<base>` tag + absolute-asset-path rewriting so relative & root-relative URLs resolve through the prefix. WebSocket/HMR is NOT proxied (built/static sites work; live-reload dev servers load but won't hot-update). The client detects `http://localhost:PORT` in replies and renders an "open on phone" button.
+- **Dev servers**: `app.use('/proxy', …)` reverse-proxies `/proxy/<port>/…` to `127.0.0.1:<port>`. HTML gets a `<base>` tag + absolute-asset-path rewriting so relative & root-relative URLs resolve through the prefix. WebSocket/HMR is NOT proxied (built/static sites work; live-reload dev servers load but won't hot-update). The client detects `http://localhost:PORT` in replies and renders an "open on phone" button. **Port whitelist**: only ports seen as `localhost:<port>` in a transcript/spawn output are allowed (`seenPorts`; `CC_PROXY_ALLOW` env adds more) — otherwise 403, so an authed client can't SSRF into arbitrary local services.
+- **File browser**: `GET /files?path=` lists a home-confined directory (dirs first, dotfiles/node_modules skipped). `viewer.html` renders `.md`/`.txt`/`.log` with sanitized markdown; relative links inside chain back through `/media` and `/viewer.html`. Text file types (incl. `.html`) are served as `text/plain` on purpose — `text/html` would run same-origin with the auth cookie.
+- **Security extras**: `/auth` brute-force throttle (5 fails/IP → 60 s lockout + 300 ms delay), `public/uploads` swept (>7 days) every 6 h, `.audit.log` (gitignored) records auth/send/stop/permission/denied-proxy events as JSON lines.
 
 ## Cross-platform notes
 
