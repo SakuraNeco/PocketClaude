@@ -869,34 +869,48 @@ app.use('/proxy', (req, res) => {
   }
   const subPath = m[2] || '/';
   const prefix = '/proxy/' + port;
-  const headers = { ...req.headers, host: '127.0.0.1:' + port, 'accept-encoding': 'identity' };
+  const headers = { ...req.headers, host: 'localhost:' + port, 'accept-encoding': 'identity' };
   delete headers['if-none-match']; delete headers['if-modified-since'];
-  const preq = http.request({ host: '127.0.0.1', port, path: subPath, method: req.method, headers }, pres => {
-    const ct = pres.headers['content-type'] || '';
-    const out = { ...pres.headers };
-    delete out['content-length'];
-    if (out.location && /^\/(?!\/)/.test(out.location)) out.location = prefix + out.location;
-    if (ct.includes('text/html')) {
-      const chunks = [];
-      pres.on('data', c => chunks.push(c));
-      pres.on('end', () => {
-        let html = Buffer.concat(chunks).toString('utf8');
-        // rewrite absolute-root asset URLs first…
-        html = html.replace(/(\b(?:href|src|action|poster)\s*=\s*["'])\/(?!\/)/gi, `$1${prefix}/`)
-                   .replace(/url\((['"]?)\/(?!\/)/gi, `url($1${prefix}/`);
-        // …then inject <base> (after rewriting, so its own href isn't mangled)
-        const baseTag = `<base href="${prefix}/">`;
-        html = /<head[^>]*>/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`) : baseTag + html;
-        res.writeHead(pres.statusCode, out);
-        res.end(html);
+
+  // Buffer the request body so a dual-stack retry can resend it.
+  const bodyChunks = [];
+  req.on('data', c => bodyChunks.push(c));
+  req.on('end', () => {
+    // Dev servers bind IPv4 (127.0.0.1) or IPv6-only (::1 — Vite on Windows
+    // does this) unpredictably — try v4 first, fall back to v6 on refusal.
+    const attempt = (hostAddr, canRetry) => {
+      const preq = http.request({ host: hostAddr, port, path: subPath, method: req.method, headers }, pres => {
+        const ct = pres.headers['content-type'] || '';
+        const out = { ...pres.headers };
+        delete out['content-length'];
+        if (out.location && /^\/(?!\/)/.test(out.location)) out.location = prefix + out.location;
+        if (ct.includes('text/html')) {
+          const chunks = [];
+          pres.on('data', c => chunks.push(c));
+          pres.on('end', () => {
+            let html = Buffer.concat(chunks).toString('utf8');
+            // rewrite absolute-root asset URLs first…
+            html = html.replace(/(\b(?:href|src|action|poster)\s*=\s*["'])\/(?!\/)/gi, `$1${prefix}/`)
+                       .replace(/url\((['"]?)\/(?!\/)/gi, `url($1${prefix}/`);
+            // …then inject <base> (after rewriting, so its own href isn't mangled)
+            const baseTag = `<base href="${prefix}/">`;
+            html = /<head[^>]*>/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`) : baseTag + html;
+            res.writeHead(pres.statusCode, out);
+            res.end(html);
+          });
+        } else {
+          res.writeHead(pres.statusCode, out);
+          pres.pipe(res);
+        }
       });
-    } else {
-      res.writeHead(pres.statusCode, out);
-      pres.pipe(res);
-    }
+      preq.on('error', e => {
+        if (canRetry && e.code === 'ECONNREFUSED') return attempt('::1', false);
+        if (!res.headersSent) res.status(502).end('proxy error: ' + e.message);
+      });
+      preq.end(Buffer.concat(bodyChunks));
+    };
+    attempt('127.0.0.1', true);
   });
-  preq.on('error', e => { if (!res.headersSent) res.status(502).end('proxy error: ' + e.message); });
-  req.pipe(preq);
 });
 
 // Pure, dependency-free helpers are exported for unit tests. Requiring this
