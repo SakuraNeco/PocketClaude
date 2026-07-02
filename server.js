@@ -855,19 +855,11 @@ app.post('/mcp-permission', (req, res) => {
   sendPush('perm', tool_name || 'tool', { sessionId: sessionId || '' });
 });
 
-// Reverse-proxy a local dev server so the phone can view it: /proxy/<port>/...
-// HTML gets a <base> tag + absolute-asset-path rewriting so relative & root-
-// relative URLs resolve through the prefix. (WebSocket/HMR is not proxied.)
-app.use('/proxy', (req, res) => {
-  const m = /^\/(\d{1,5})(\/[\s\S]*)?$/.exec(req.url);
-  if (!m) return res.status(400).end('usage: /proxy/<port>/path');
-  const port = parseInt(m[1], 10);
-  if (!port || port > 65535 || port === Number(PORT)) return res.status(400).end('bad port');
-  if (!seenPorts.has(port)) {
-    audit('proxy_denied', { ip: reqIp(req), port });
-    return res.status(403).end('port not referenced by any session (set CC_PROXY_ALLOW to override)');
-  }
-  const subPath = m[2] || '/';
+// Forward one request to a local dev server. Used by /proxy/<port>/… AND by
+// the referer-based fallback below (JS inside a proxied page fetches absolute
+// paths like /api/x that can't be rewritten — they land on our origin and get
+// routed back to the right port here).
+function forwardToPort(port, pathWithQuery, req, res) {
   const prefix = '/proxy/' + port;
   const headers = { ...req.headers, host: 'localhost:' + port, 'accept-encoding': 'identity' };
   delete headers['if-none-match']; delete headers['if-modified-since'];
@@ -879,12 +871,17 @@ app.use('/proxy', (req, res) => {
     // Dev servers bind IPv4 (127.0.0.1) or IPv6-only (::1 — Vite on Windows
     // does this) unpredictably — try v4 first, fall back to v6 on refusal.
     const attempt = (hostAddr, canRetry) => {
-      const preq = http.request({ host: hostAddr, port, path: subPath, method: req.method, headers }, pres => {
+      const preq = http.request({ host: hostAddr, port, path: pathWithQuery, method: req.method, headers }, pres => {
         const ct = pres.headers['content-type'] || '';
         const out = { ...pres.headers };
         delete out['content-length'];
         if (out.location && /^\/(?!\/)/.test(out.location)) out.location = prefix + out.location;
         if (ct.includes('text/html')) {
+          // remember which port this browser is previewing, so absolute-path
+          // fetches from its JS can be routed back (see fallback below)
+          const sc = out['set-cookie'];
+          const mine = `cc_proxy=${port}; Path=/; SameSite=Lax`;
+          out['set-cookie'] = sc ? [].concat(sc, mine) : mine;
           const chunks = [];
           pres.on('data', c => chunks.push(c));
           pres.on('end', () => {
@@ -911,6 +908,41 @@ app.use('/proxy', (req, res) => {
     };
     attempt('127.0.0.1', true);
   });
+}
+
+// Reverse-proxy a local dev server so the phone can view it: /proxy/<port>/...
+// HTML gets a <base> tag + absolute-asset-path rewriting so relative & root-
+// relative URLs resolve through the prefix. (WebSocket/HMR is not proxied.)
+app.use('/proxy', (req, res) => {
+  const m = /^\/(\d{1,5})(\/[\s\S]*)?$/.exec(req.url);
+  if (!m) return res.status(400).end('usage: /proxy/<port>/path');
+  const port = parseInt(m[1], 10);
+  if (!port || port > 65535 || port === Number(PORT)) return res.status(400).end('bad port');
+  if (!seenPorts.has(port)) {
+    audit('proxy_denied', { ip: reqIp(req), port });
+    return res.status(403).end('port not referenced by any session (set CC_PROXY_ALLOW to override)');
+  }
+  forwardToPort(port, m[2] || '/', req, res);
+});
+
+// ── Proxy fallback (must stay the LAST route) ──
+// JS inside a proxied page can't be path-rewritten, so its absolute requests
+// (fetch('/api/x'), import '/src/y.js') land on OUR origin. If the request's
+// Referer (or the cc_proxy cookie set when the proxied HTML was served) says
+// the browser is previewing /proxy/<port>/, forward it there transparently.
+// Our own routes always win — they matched earlier.
+app.use((req, res) => {
+  let port = null;
+  const r = /\/proxy\/(\d{1,5})\//.exec(req.headers.referer || '');
+  if (r) port = parseInt(r[1], 10);
+  if (!port) {
+    const c = /(?:^|;\s*)cc_proxy=(\d{1,5})/.exec(req.headers.cookie || '');
+    if (c) port = parseInt(c[1], 10);
+  }
+  if (port && port !== Number(PORT) && seenPorts.has(port)) {
+    return forwardToPort(port, req.originalUrl, req, res);
+  }
+  res.status(404).end('not found');
 });
 
 // Pure, dependency-free helpers are exported for unit tests. Requiring this
