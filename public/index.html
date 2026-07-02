@@ -396,6 +396,28 @@ body{
 .fname{font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .fmeta{font-size:11px;color:var(--text3);margin-top:1px;}
 .fempty{padding:24px;text-align:center;color:var(--text3);font-size:13px;}
+
+/* Advanced-options button + modal */
+#btn-adv{position:relative;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:4px 9px;font-size:14px;cursor:pointer;font-family:inherit;display:flex;align-items:center;}
+#btn-adv:active{background:var(--bg3);}
+#adv-badge{display:none;position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;background:var(--blue);color:#fff;border-radius:8px;font-size:10px;font-weight:700;align-items:center;justify-content:center;padding:0 4px;}
+#adv-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;}
+#adv-modal.open{display:flex;}
+#adv-box{background:var(--bg1);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:480px;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.4);}
+#adv-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
+#adv-title{flex:1;font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:7px;}
+.modal-x{background:transparent;border:none;color:var(--text2);font-size:20px;cursor:pointer;flex-shrink:0;}
+#adv-body{overflow-y:auto;padding:10px 16px 16px;display:flex;flex-direction:column;gap:4px;}
+.adv-row{display:flex;align-items:center;gap:12px;padding:10px 2px;cursor:pointer;border-bottom:1px solid var(--border);}
+.adv-txt{flex:1;min-width:0;}
+.adv-l{font-size:14px;color:var(--text);font-weight:500;}
+.adv-d{font-size:12px;color:var(--text3);margin-top:2px;line-height:1.4;}
+.adv-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--blue);flex-shrink:0;cursor:pointer;}
+.adv-field{padding:10px 2px;border-bottom:1px solid var(--border);}
+.adv-field input,.adv-field textarea,.adv-field select{width:100%;margin-top:6px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;outline:none;resize:vertical;}
+.adv-field input:focus,.adv-field textarea:focus,.adv-field select:focus{border-color:rgba(79,142,247,.6);}
+#adv-clear{margin-top:12px;background:var(--bg2);border:1px solid var(--border2);color:var(--red);border-radius:10px;padding:10px;font-size:13px;cursor:pointer;font-family:inherit;}
+#adv-clear:active{background:var(--bg3);}
 </style>
 </head>
 <body>
@@ -481,7 +503,36 @@ body{
           <i class="ti ti-folder" aria-hidden="true"></i>
           <input id="cwd-input" placeholder="留空用預設" spellcheck="false"/>
         </label>
+        <button class="opt" id="btn-adv" onclick="openAdv()"><i class="ti ti-adjustments-horizontal"></i><span id="adv-badge"></span></button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="adv-modal">
+  <div id="adv-box">
+    <div id="adv-head">
+      <span id="adv-title"><i class="ti ti-adjustments-horizontal"></i> <span id="adv-title-t">進階選項</span></span>
+      <button class="modal-x" onclick="closeAdv()" aria-label="close"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="adv-body">
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-fork"></div><div class="adv-d" id="d-fork"></div></div><input type="checkbox" id="a-fork"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-wt"></div><div class="adv-d" id="d-wt"></div></div><input type="checkbox" id="a-wt"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-ro"></div><div class="adv-d" id="d-ro"></div></div><input type="checkbox" id="a-ro"></label>
+      <label class="adv-row"><div class="adv-txt"><div class="adv-l" id="l-cont"></div><div class="adv-d" id="d-cont"></div></div><input type="checkbox" id="a-cont"></label>
+      <div class="adv-field"><div class="adv-l" id="l-name"></div><input type="text" id="a-name" maxlength="60" spellcheck="false"></div>
+      <div class="adv-field"><div class="adv-l" id="l-dirs"></div><input type="text" id="a-dirs" spellcheck="false"></div>
+      <div class="adv-field"><div class="adv-l" id="l-sys"></div><textarea id="a-sys" rows="2" maxlength="2000"></textarea></div>
+      <div class="adv-field"><div class="adv-l" id="l-fb"></div>
+        <select id="a-fb">
+          <option value="">—</option>
+          <option value="fable">Fable 5</option>
+          <option value="opus">Opus</option>
+          <option value="sonnet">Sonnet</option>
+          <option value="haiku">Haiku</option>
+        </select>
+      </div>
+      <button id="adv-clear" onclick="clearAdv()"></button>
     </div>
   </div>
 </div>
@@ -528,6 +579,7 @@ const I18N = {
     queued:'已排隊 — 任務結束後自動送出',
     load_more:'載入更早的訊息',
     files:'檔案', mic_unsupported:'此瀏覽器不支援語音輸入',
+    adv:'進階選項', adv_fork:'分支對話', adv_fork_d:'續聊時開成新分支，不動原對話', adv_wt:'Worktree 沙盒', adv_wt_d:'在隔離的 git worktree 執行，砸了不傷主分支', adv_ro:'唯讀模式', adv_ro_d:'禁止寫檔/改檔/執行指令 — 只分析不動手', adv_cont:'接續最近對話', adv_cont_d:'開新對話時，接續該目錄最近的一次對話', adv_name:'任務名稱', adv_dirs:'附加目錄（逗號分隔）', adv_sys:'自訂指示（附加 system prompt）', adv_fb:'後備模型', adv_clear:'全部清除',
   },
   en: {
     conn_connecting:'Connecting…', conn_online:'Connected', conn_offline:'Disconnected…', conn_unauth:'Not signed in',
@@ -550,6 +602,7 @@ const I18N = {
     queued:'Queued — will send when the current task finishes',
     load_more:'Load earlier messages',
     files:'Files', mic_unsupported:'Voice input not supported in this browser',
+    adv:'Advanced', adv_fork:'Fork session', adv_fork_d:'Resume as a new branch — original untouched', adv_wt:'Worktree sandbox', adv_wt_d:'Run in an isolated git worktree', adv_ro:'Read-only', adv_ro_d:'No Write/Edit/Bash — analysis only', adv_cont:'Continue recent', adv_cont_d:"New chat continues this folder's latest conversation", adv_name:'Task name', adv_dirs:'Extra dirs (comma-separated)', adv_sys:'Custom instructions (appended system prompt)', adv_fb:'Fallback model', adv_clear:'Clear all',
   },
   ja: {
     conn_connecting:'接続中...', conn_online:'接続済み', conn_offline:'切断...', conn_unauth:'未ログイン',
@@ -572,6 +625,7 @@ const I18N = {
     queued:'キュー追加 — タスク完了後に自動送信',
     load_more:'過去のメッセージを読み込む',
     files:'ファイル', mic_unsupported:'このブラウザは音声入力に非対応です',
+    adv:'詳細オプション', adv_fork:'セッション分岐', adv_fork_d:'再開時に新しい分岐として実行、元は変更なし', adv_wt:'Worktree サンドボックス', adv_wt_d:'隔離された git worktree で実行', adv_ro:'読み取り専用', adv_ro_d:'Write/Edit/Bash 禁止 — 分析のみ', adv_cont:'直近の会話を継続', adv_cont_d:'新規チャット時にこのフォルダの直近会話を継続', adv_name:'タスク名', adv_dirs:'追加ディレクトリ（カンマ区切り）', adv_sys:'カスタム指示（system prompt に追加）', adv_fb:'フォールバックモデル', adv_clear:'すべてクリア',
   },
   'zh-CN': {
     conn_connecting:'连接中...', conn_online:'已连接', conn_offline:'断线...', conn_unauth:'未登录',
@@ -594,6 +648,7 @@ const I18N = {
     queued:'已排队 — 任务结束后自动发送',
     load_more:'加载更早的消息',
     files:'文件', mic_unsupported:'此浏览器不支持语音输入',
+    adv:'高级选项', adv_fork:'分支对话', adv_fork_d:'续聊时开成新分支，不动原对话', adv_wt:'Worktree 沙盒', adv_wt_d:'在隔离的 git worktree 执行，砸了不伤主分支', adv_ro:'只读模式', adv_ro_d:'禁止写文件/改文件/执行命令 — 只分析不动手', adv_cont:'接续最近对话', adv_cont_d:'开新对话时，接续该目录最近的一次对话', adv_name:'任务名称', adv_dirs:'附加目录（逗号分隔）', adv_sys:'自定义指示（附加 system prompt）', adv_fb:'后备模型', adv_clear:'全部清除',
   },
   ko: {
     conn_connecting:'연결 중...', conn_online:'연결됨', conn_offline:'연결 끊김...', conn_unauth:'미로그인',
@@ -616,6 +671,7 @@ const I18N = {
     queued:'대기열에 추가됨 — 작업이 끝나면 자동 전송',
     load_more:'이전 메시지 불러오기',
     files:'파일', mic_unsupported:'이 브라우저는 음성 입력을 지원하지 않습니다',
+    adv:'고급 옵션', adv_fork:'세션 분기', adv_fork_d:'재개 시 새 분기로 실행, 원본은 그대로', adv_wt:'Worktree 샌드박스', adv_wt_d:'격리된 git worktree에서 실행', adv_ro:'읽기 전용', adv_ro_d:'Write/Edit/Bash 금지 — 분석만', adv_cont:'최근 대화 이어가기', adv_cont_d:'새 대화 시 이 폴더의 최근 대화를 이어감', adv_name:'작업 이름', adv_dirs:'추가 디렉터리(쉼표 구분)', adv_sys:'커스텀 지시(system prompt에 추가)', adv_fb:'대체 모델', adv_clear:'모두 지우기',
   },
   es: {
     conn_connecting:'Conectando…', conn_online:'Conectado', conn_offline:'Desconectado…', conn_unauth:'Sin acceso',
@@ -638,6 +694,7 @@ const I18N = {
     queued:'En cola — se enviará al terminar la tarea actual',
     load_more:'Cargar mensajes anteriores',
     files:'Archivos', mic_unsupported:'Entrada de voz no compatible con este navegador',
+    adv:'Avanzado', adv_fork:'Bifurcar sesión', adv_fork_d:'Reanudar como rama nueva — el original intacto', adv_wt:'Sandbox worktree', adv_wt_d:'Ejecutar en un git worktree aislado', adv_ro:'Solo lectura', adv_ro_d:'Sin Write/Edit/Bash — solo análisis', adv_cont:'Continuar reciente', adv_cont_d:'El chat nuevo continúa la última conversación de esta carpeta', adv_name:'Nombre de tarea', adv_dirs:'Directorios extra (separados por comas)', adv_sys:'Instrucciones personalizadas (system prompt añadido)', adv_fb:'Modelo de respaldo', adv_clear:'Borrar todo',
   },
   fr: {
     conn_connecting:'Connexion…', conn_online:'Connecté', conn_offline:'Déconnecté…', conn_unauth:'Non connecté',
@@ -660,6 +717,7 @@ const I18N = {
     queued:'En file — envoyé à la fin de la tâche en cours',
     load_more:'Charger les messages précédents',
     files:'Fichiers', mic_unsupported:'Saisie vocale non prise en charge par ce navigateur',
+    adv:'Avancé', adv_fork:'Bifurquer la session', adv_fork_d:'Reprendre comme nouvelle branche — original intact', adv_wt:'Sandbox worktree', adv_wt_d:'Exécuter dans un git worktree isolé', adv_ro:'Lecture seule', adv_ro_d:"Pas de Write/Edit/Bash — analyse uniquement", adv_cont:'Continuer la récente', adv_cont_d:'Un nouveau chat reprend la dernière conversation de ce dossier', adv_name:'Nom de tâche', adv_dirs:'Répertoires supplémentaires (virgules)', adv_sys:'Instructions personnalisées (system prompt ajouté)', adv_fb:'Modèle de secours', adv_clear:'Tout effacer',
   },
   de: {
     conn_connecting:'Verbinde…', conn_online:'Verbunden', conn_offline:'Getrennt…', conn_unauth:'Nicht angemeldet',
@@ -682,6 +740,7 @@ const I18N = {
     queued:'In Warteschlange — wird nach der aktuellen Aufgabe gesendet',
     load_more:'Ältere Nachrichten laden',
     files:'Dateien', mic_unsupported:'Spracheingabe wird von diesem Browser nicht unterstützt',
+    adv:'Erweitert', adv_fork:'Sitzung verzweigen', adv_fork_d:'Als neuer Zweig fortsetzen — Original unberührt', adv_wt:'Worktree-Sandbox', adv_wt_d:'In isoliertem git worktree ausführen', adv_ro:'Nur lesen', adv_ro_d:'Kein Write/Edit/Bash — nur Analyse', adv_cont:'Letzte fortsetzen', adv_cont_d:'Neuer Chat setzt die letzte Unterhaltung dieses Ordners fort', adv_name:'Aufgabenname', adv_dirs:'Zusätzliche Verzeichnisse (kommagetrennt)', adv_sys:'Eigene Anweisungen (angehängter system prompt)', adv_fb:'Fallback-Modell', adv_clear:'Alles löschen',
   },
 };
 let LANG = 'zh-TW'; try { LANG = localStorage.getItem('lang') || 'zh-TW'; } catch {}
@@ -1364,7 +1423,10 @@ async function send() {
   const permissionMode = $('perm-mode')?.value || 'default';
   const model = $('model-sel')?.value || 'default';
   const effort = $('effort-sel')?.value || 'default';
-  const payload = { type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model, effort };
+  const payload = { type: 'send', text: fullText, cwd: $('cwd-input')?.value.trim() || '', resumeSessionId, imgPaths, permissionMode, model, effort, adv: { ...adv } };
+  // one-shot flags apply to THIS send only
+  adv.fork = adv.worktree = adv.continueRecent = false; adv.name = '';
+  updateAdvBadge();
 
   if (resumeSessionId) {
     // Optimistic echo (nice thumbnails). Remember the exact transcript text so
@@ -1443,6 +1505,53 @@ function fileRow(it, up) {
   };
   return el;
 }
+
+// ── Advanced options (⚙) — extra claude CLI flags per send. One-shot flags
+// (fork / worktree / continue / name) clear after each send; sticky ones
+// (readonly / dirs / sysPrompt / fallback) persist in localStorage. ──
+const adv = { fork:false, worktree:false, readonly:false, continueRecent:false, name:'', addDirs:'', sysPrompt:'', fallbackModel:'' };
+try {
+  const s = JSON.parse(localStorage.getItem('adv') || '{}');
+  adv.readonly = !!s.readonly; adv.addDirs = s.addDirs || '';
+  adv.sysPrompt = s.sysPrompt || ''; adv.fallbackModel = s.fallbackModel || '';
+} catch {}
+function saveAdv() {
+  try { localStorage.setItem('adv', JSON.stringify({ readonly: adv.readonly, addDirs: adv.addDirs, sysPrompt: adv.sysPrompt, fallbackModel: adv.fallbackModel })); } catch {}
+}
+function advCount() {
+  return ['fork','worktree','readonly','continueRecent','name','addDirs','sysPrompt','fallbackModel'].filter(k => adv[k]).length;
+}
+function updateAdvBadge() {
+  const n = advCount(), b = $('adv-badge');
+  b.textContent = n || '';
+  b.style.display = n ? 'flex' : 'none';
+}
+function syncAdvUI() {
+  $('a-fork').checked = adv.fork; $('a-wt').checked = adv.worktree;
+  $('a-ro').checked = adv.readonly; $('a-cont').checked = adv.continueRecent;
+  $('a-name').value = adv.name; $('a-dirs').value = adv.addDirs;
+  $('a-sys').value = adv.sysPrompt; $('a-fb').value = adv.fallbackModel;
+}
+function readAdvUI() {
+  adv.fork = $('a-fork').checked; adv.worktree = $('a-wt').checked;
+  adv.readonly = $('a-ro').checked; adv.continueRecent = $('a-cont').checked;
+  adv.name = $('a-name').value.trim(); adv.addDirs = $('a-dirs').value.trim();
+  adv.sysPrompt = $('a-sys').value.trim(); adv.fallbackModel = $('a-fb').value;
+  saveAdv(); updateAdvBadge();
+}
+function openAdv() { syncAdvUI(); $('adv-modal').classList.add('open'); }
+function closeAdv() { $('adv-modal').classList.remove('open'); }
+function clearAdv() {
+  for (const k of ['fork','worktree','readonly','continueRecent']) adv[k] = false;
+  for (const k of ['name','addDirs','sysPrompt','fallbackModel']) adv[k] = '';
+  syncAdvUI(); saveAdv(); updateAdvBadge();
+}
+$('adv-modal')?.addEventListener('click', e => { if (e.target.id === 'adv-modal') closeAdv(); });
+for (const id of ['a-fork','a-wt','a-ro','a-cont','a-name','a-dirs','a-sys','a-fb']) {
+  $(id)?.addEventListener('change', readAdvUI);
+  $(id)?.addEventListener('input', readAdvUI);
+}
+updateAdvBadge();   // sticky options restored from localStorage show up immediately
 
 // ── Voice input (Web Speech API) — dictate into the prompt box ──
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1621,6 +1730,11 @@ function applyLang(l) {
   setOpts('model-sel', { default:'model_default' });
   setOpts('effort-sel', { default:'effort_default', low:'effort_low', medium:'effort_medium', high:'effort_high', xhigh:'effort_xhigh', max:'effort_max' });
   if (pushMode) showPushBar(pushMode);
+  // advanced-options modal labels
+  $('adv-title-t').textContent = T('adv');
+  const advMap = { 'l-fork':'adv_fork','d-fork':'adv_fork_d','l-wt':'adv_wt','d-wt':'adv_wt_d','l-ro':'adv_ro','d-ro':'adv_ro_d','l-cont':'adv_cont','d-cont':'adv_cont_d','l-name':'adv_name','l-dirs':'adv_dirs','l-sys':'adv_sys','l-fb':'adv_fb' };
+  for (const [id, k] of Object.entries(advMap)) { const el = $(id); if (el) el.textContent = T(k); }
+  $('adv-clear').textContent = T('adv_clear');
   if (aid && S[aid]?.loaded) renderAll(aid);   // tool cards / buttons pick up the new language
   syncPushLang();                              // push notifications follow the UI language
 }

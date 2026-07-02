@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 const os = require('node:os');
-const { cwdToProjectDir, isTempCwd, truncStr, renderable, slim } = require('../server.js');
+const { cwdToProjectDir, isTempCwd, truncStr, renderable, slim, buildSpawnArgs } = require('../server.js');
 
 test('cwdToProjectDir escapes EVERY non-alphanumeric char and keeps leading dashes', () => {
   // This must match Claude Code's own escaping exactly — an earlier bug only
@@ -59,6 +59,45 @@ test('slim drops thinking/tool_result blocks and truncates big tool inputs', () 
   const types = out.message.content.map(b => b.type);
   assert.deepEqual(types, ['text', 'tool_use']);                         // thinking dropped
   assert.ok(out.message.content[1].input.content.endsWith('… [truncated]'));
+});
+
+test('buildSpawnArgs maps advanced options to the right CLI flags', () => {
+  const args = buildSpawnArgs({
+    prompt: 'hi', resumeSessionId: 'sid-1', permissionMode: 'acceptEdits',
+    model: 'fable', effort: 'high',
+    adv: { fork: true, worktree: true, readonly: true, name: 'my task', addDirs: 'C:\\a, C:\\b', sysPrompt: 'be brief', fallbackModel: 'sonnet' },
+  });
+  // true if the sequence appears ANYWHERE in args (a flag may repeat, e.g. --add-dir)
+  const has = (...seq) => args.some((_, i) => seq.every((v, j) => args[i + j] === v));
+  assert.ok(has('--fork-session'));
+  assert.ok(has('--worktree'));
+  assert.ok(has('--disallowedTools', 'Write', 'Edit', 'NotebookEdit', 'Bash'));
+  assert.ok(has('--name', 'my task'));
+  assert.ok(has('--add-dir', 'C:\\a') && has('--add-dir', 'C:\\b'));
+  assert.ok(has('--append-system-prompt', 'be brief'));
+  assert.ok(has('--fallback-model', 'sonnet'));
+  assert.ok(has('--model', 'fable') && has('--effort', 'high'));
+  assert.ok(has('--resume', 'sid-1'));
+  assert.equal(args[args.length - 1], 'hi');   // prompt last, after --print
+});
+
+test('buildSpawnArgs ignores invalid / inapplicable advanced options', () => {
+  // fork without resume is meaningless; continue only applies to fresh chats;
+  // unknown fallback models must not pass through
+  const fresh = buildSpawnArgs({ prompt: 'x', resumeSessionId: null, permissionMode: 'default',
+    adv: { fork: true, continueRecent: true, fallbackModel: 'gpt-4', sysPrompt: 'y'.repeat(3000) } });
+  assert.ok(!fresh.includes('--fork-session'));
+  assert.ok(fresh.includes('--continue'));
+  assert.ok(!fresh.includes('--fallback-model'));
+  const sys = fresh[fresh.indexOf('--append-system-prompt') + 1];
+  assert.ok(sys.length <= 2000);                                 // clamped
+  const resumed = buildSpawnArgs({ prompt: 'x', resumeSessionId: 's', permissionMode: 'default',
+    adv: { continueRecent: true } });
+  assert.ok(!resumed.includes('--continue'));                    // resume wins
+  // addDirs capped at 5
+  const many = buildSpawnArgs({ prompt: 'x', resumeSessionId: null, permissionMode: 'default',
+    adv: { addDirs: 'a,b,c,d,e,f,g' } });
+  assert.equal(many.filter(v => v === '--add-dir').length, 5);
 });
 
 test('slim keeps only text blocks for user events', () => {

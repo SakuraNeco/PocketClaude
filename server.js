@@ -537,8 +537,42 @@ function writeMcpConfig(key) {
 const pendingPerms = new Map();
 let permSeq = 0;
 
+// Tools denied in read-only mode: nothing that mutates the machine.
+const READONLY_DENY = ['Write', 'Edit', 'NotebookEdit', 'Bash'];
+
+// Build the claude CLI argument list — pure, so it's unit-testable.
+// `adv` = advanced options from the web UI's ⚙ menu; every value is validated
+// or clamped here, never trusted verbatim.
+function buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv = {}, mcpConfig = null }) {
+  const args = ['--output-format', 'stream-json', '--verbose'];
+  if (permissionMode === 'interactive') {
+    args.push('--permission-mode', 'default', '--mcp-config', mcpConfig, '--permission-prompt-tool', 'mcp__ccperm__approve');
+  } else if (permissionMode === 'bypassPermissions') {
+    args.push('--dangerously-skip-permissions');           // canonical flag, all versions
+  } else if (permissionMode && PERM_MODES.has(permissionMode)) {
+    args.push('--permission-mode', permissionMode);
+  }
+  if (model && MODELS.has(model)) args.push('--model', model);
+  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
+  if (adv.fallbackModel && MODELS.has(adv.fallbackModel)) args.push('--fallback-model', adv.fallbackModel);
+  if (adv.fork && resumeSessionId) args.push('--fork-session');
+  if (adv.worktree) args.push('--worktree');
+  if (adv.readonly) args.push('--disallowedTools', ...READONLY_DENY);
+  if (adv.continueRecent && !resumeSessionId) args.push('--continue');
+  if (adv.name && typeof adv.name === 'string') args.push('--name', adv.name.slice(0, 60));
+  if (adv.addDirs) {
+    for (const d of String(adv.addDirs).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 5)) {
+      args.push('--add-dir', d);
+    }
+  }
+  if (adv.sysPrompt) args.push('--append-system-prompt', String(adv.sysPrompt).slice(0, 2000));
+  if (resumeSessionId) args.push('--resume', resumeSessionId);
+  args.push('--print', prompt);
+  return args;
+}
+
 // --- Spawn / resume Claude session ---
-function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort) {
+function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort, adv) {
   // Guard: never let the web resume PocketClaude's OWN managing session. Its whole
   // context is "run the server on :3000", so the resumed agent helpfully restarts
   // it — killing this very server mid-reply (the self-destruct loop).
@@ -559,21 +593,9 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
     return;
   }
 
-  const args = ['--output-format', 'stream-json', '--verbose'];
   let mcpConfig = null;
-  if (permissionMode === 'interactive') {
-    // route every permission decision to the phone via our MCP approve tool
-    mcpConfig = writeMcpConfig(key);
-    args.push('--permission-mode', 'default', '--mcp-config', mcpConfig, '--permission-prompt-tool', 'mcp__ccperm__approve');
-  } else if (permissionMode === 'bypassPermissions') {
-    args.push('--dangerously-skip-permissions');           // canonical flag, all versions
-  } else if (permissionMode && PERM_MODES.has(permissionMode)) {
-    args.push('--permission-mode', permissionMode);
-  }
-  if (model && MODELS.has(model)) args.push('--model', model);
-  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  if (resumeSessionId) args.push('--resume', resumeSessionId);
-  args.push('--print', prompt);
+  if (permissionMode === 'interactive') mcpConfig = writeMcpConfig(key);   // route approvals to the phone
+  const args = buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv: adv || {}, mcpConfig });
 
   // Use cwd from tailed session if resuming
   const effectiveCwd = cwd || (resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd) || process.cwd();
@@ -626,8 +648,10 @@ wss.on('connection', (ws, req) => {
   ws.on('message', raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
     if (msg.type === 'send') {
-      audit('send', { ip, session: msg.resumeSessionId || '(new)', cwd: msg.cwd || '', mode: msg.permissionMode, model: msg.model, len: (msg.text || '').length });
-      startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort);
+      const advUsed = msg.adv && typeof msg.adv === 'object'
+        ? Object.keys(msg.adv).filter(k => msg.adv[k]) : [];
+      audit('send', { ip, session: msg.resumeSessionId || '(new)', cwd: msg.cwd || '', mode: msg.permissionMode, model: msg.model, adv: advUsed, len: (msg.text || '').length });
+      startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort, msg.adv);
     }
     else if (msg.type === 'stop') {
       audit('stop', { ip, key: msg.key || msg.sessionId || '(all)' });
@@ -872,7 +896,7 @@ app.use('/proxy', (req, res) => {
 
 // Pure, dependency-free helpers are exported for unit tests. Requiring this
 // module must NOT start the server or any timers — hence the boot guard below.
-module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, slim };
+module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, slim, buildSpawnArgs };
 
 // ── Boot (only when run directly, not when require()d by a test) ──
 if (require.main === module) {
