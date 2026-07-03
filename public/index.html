@@ -457,6 +457,17 @@ body{
 .srv-add input{flex:1;min-width:120px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit;}
 .srv-add button{background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
 
+/* In-app webview: open /html & /proxy inside the PWA with a Back bar, so a
+   standalone (home-screen) PWA doesn't get covered by a chromeless new tab. */
+#webview-modal{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;background:var(--bg1);}
+#webview-modal.open{display:flex;}
+#webview-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));border-bottom:1px solid var(--border);background:var(--bg1);flex-shrink:0;}
+#webview-back{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:7px 13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;flex-shrink:0;}
+#webview-back:active{background:var(--bg3);}
+#webview-title{flex:1;min-width:0;font-size:12px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#webview-ext{background:transparent;border:none;color:var(--text2);font-size:19px;cursor:pointer;flex-shrink:0;}
+#webview-frame{flex:1;border:none;width:100%;background:#fff;}
+
 /* Advanced-options button + modal */
 #btn-adv{position:relative;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:4px 9px;font-size:14px;cursor:pointer;font-family:inherit;display:flex;align-items:center;}
 #btn-adv:active{background:var(--bg3);}
@@ -639,6 +650,15 @@ body{
   </div>
 </div>
 
+<div id="webview-modal">
+  <div id="webview-bar">
+    <button id="webview-back" onclick="history.back()"><i class="ti ti-chevron-left"></i> <span id="webview-back-l">返回</span></button>
+    <span id="webview-title"></span>
+    <button id="webview-ext" onclick="webviewExternal()" aria-label="用瀏覽器開啟" title="用瀏覽器開啟"><i class="ti ti-external-link"></i></button>
+  </div>
+  <iframe id="webview-frame" referrerpolicy="no-referrer"></iframe>
+</div>
+
 <div id="login-modal">
   <div id="login-box">
     <div id="login-logo">P</div>
@@ -685,6 +705,7 @@ const I18N = {
     srv_empty:'還沒有其他伺服器。在下方新增,就能一鍵切換多台 PocketClaude(家用桌機、工作筆電…)。',
     srv_name:'名稱(選填)', srv_key:'登入密鑰', srv_addbtn:'加入',
     srv_note:'※ 點一下伺服器會帶著密鑰導向該機並自動登入。密鑰只存在這個瀏覽器。',
+    webview_back:'返回',
     update_avail:'有新版本', up_to_date:'已是最新版',
     push_enable:'啟用完成通知',
     ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
@@ -720,6 +741,7 @@ const I18N = {
     srv_empty:'No other servers yet. Add one below to switch between multiple PocketClaude machines (home desktop, work laptop…).',
     srv_name:'Name (optional)', srv_key:'Login key', srv_addbtn:'Add',
     srv_note:'※ Tapping a server navigates there with its key and logs in automatically. Keys live only in this browser.',
+    webview_back:'Back',
     update_avail:'Update available', up_to_date:'Up to date',
     push_enable:'Enable notifications',
     ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
@@ -1360,6 +1382,7 @@ function devEl(list) {
   for (const it of list) {
     const a = document.createElement('a');
     a.className = 'dev-link'; a.href = '/proxy/' + it.port + it.sub; a.target = '_blank'; a.rel = 'noopener';
+    a.onclick = e => { e.preventDefault(); openWebview(a.href, 'localhost:' + it.port + (it.sub === '/' ? '' : it.sub)); };
     a.innerHTML = `<i class="ti ti-external-link"></i>${esc(T('open_phone'))}localhost:${it.port}${esc(it.sub === '/' ? '' : it.sub)}`;
     wrap.appendChild(a);
   }
@@ -1387,11 +1410,34 @@ function htmlEl(list) {
     const name = p.replace(/\\/g, '/').split('/').pop();
     const a = document.createElement('a');
     a.className = 'dev-link'; a.href = '/html?path=' + encodeURIComponent(p) + base; a.target = '_blank'; a.rel = 'noopener';
+    a.onclick = e => { e.preventDefault(); openWebview(a.href, name); };
     a.innerHTML = `<i class="ti ti-external-link"></i>${esc(T('open_phone'))}${esc(name)}`;
     wrap.appendChild(a);
   }
   return wrap;
 }
+
+// In-app webview: open a URL (rendered /html, /proxy dev server, .md viewer)
+// inside the PWA behind a Back bar, instead of window.open('_blank') — a
+// standalone home-screen PWA has no browser chrome, so a new tab covers it with
+// no way back. A pushed history entry makes the OS/gesture Back close it too.
+let webviewUrl = '';
+function openWebview(url, title) {
+  webviewUrl = url;
+  $('webview-back-l').textContent = T('webview_back');
+  $('webview-title').textContent = title || url;
+  $('webview-frame').src = url;
+  $('webview-modal').classList.add('open');
+  try { history.pushState({ wv: 1 }, ''); } catch {}
+}
+function closeWebview() {
+  if (!$('webview-modal').classList.contains('open')) return;
+  $('webview-modal').classList.remove('open');
+  $('webview-frame').src = 'about:blank';   // stop the page (JS / audio / video)
+  webviewUrl = '';
+}
+function webviewExternal() { if (webviewUrl) window.open(webviewUrl, '_blank'); }
+window.addEventListener('popstate', closeWebview);
 
 // Nicely render the interactive tools (plan / question / todo) instead of raw JSON.
 function buildSpecialTool(m) {
@@ -1787,8 +1833,8 @@ function fileRow(it, up) {
     if (it.dir) return loadDir(it.path);
     const b = filesPath ? '&base=' + encodeURIComponent(filesPath) : '';
     const enc = encodeURIComponent(it.path);
-    if (/\.(md|markdown|txt|log)$/i.test(it.name)) window.open('/viewer.html?path=' + enc + b, '_blank');
-    else if (/\.html?$/i.test(it.name)) window.open('/html?path=' + enc + b, '_blank');   // rendered, sandboxed
+    if (/\.(md|markdown|txt|log)$/i.test(it.name)) openWebview('/viewer.html?path=' + enc + b, it.name);
+    else if (/\.html?$/i.test(it.name)) openWebview('/html?path=' + enc + b, it.name);   // rendered, sandboxed
     else window.open('/media?path=' + enc + '&download=1', '_blank');
   };
   return el;
