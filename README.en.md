@@ -96,6 +96,8 @@ Prints a `https://xxxx.trycloudflare.com` URL — open it on your phone, enter t
 - **You can't control PocketClaude's own session** from the web (it would restart and kill the server) — auto-blocked.
 - Messages sent to a session **currently open live in Desktop** are written to the transcript but won't appear in that Desktop window until it's reopened.
 - **No auto-restart**: closing the terminal / reboot / crash stops it. Use `pm2`, `launchd` (mac), Task Scheduler (win) to keep it alive.
+- **Seeing an old version on a remote device after an update**: reload once (the PWA's service worker swaps in the new build), occasionally twice. The version stamp at the bottom of the ⚙ advanced-options menu (`vX.Y.Z`) tells you which build a device actually loaded.
+- **Ad blockers**: UI element names deliberately avoid `ad`/`adv`/etc. so ad-blocker cosmetic filters don't hide them as "advertisements" — if you customize the UI, steer clear of such names.
 
 ## Security
 

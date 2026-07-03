@@ -96,6 +96,8 @@ Imprime una URL `https://xxxx.trycloudflare.com` — ábrela en el móvil e intr
 - **No puedes controlar la propia sesión de PocketClaude** desde la web (reiniciaría y mataría el servidor) — bloqueado automáticamente.
 - Los mensajes a una sesión **abierta en Desktop** se escriben en el archivo pero no aparecen en esa ventana hasta reabrirla.
 - **Sin reinicio automático**: cerrar la terminal / reiniciar / un crash lo detiene. Usa `pm2`, `launchd` (mac) o el Programador de tareas (win) para mantenerlo vivo.
+- **Tras una actualización, un dispositivo remoto muestra una versión antigua**: recarga una vez (el service worker de la PWA cambia de versión), a veces dos. El sello de versión al final del menú ⚙ de opciones avanzadas (`vX.Y.Z`) indica qué compilación cargó realmente el dispositivo.
+- **Bloqueadores de anuncios**: los nombres de los elementos de la interfaz evitan deliberadamente `ad`/`adv`/etc. para que los filtros cosméticos de los bloqueadores no los oculten como «anuncios»; si personalizas la interfaz, evita esos nombres.
 
 ## Seguridad
 

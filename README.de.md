@@ -96,6 +96,8 @@ Gibt eine `https://xxxx.trycloudflare.com`-URL aus — am Handy öffnen, Schlüs
 - **PocketClaudes eigene Sitzung ist über das Web nicht steuerbar** (würde den Server neu starten und töten) — automatisch blockiert.
 - Nachrichten an eine **im Desktop geöffnete** Unterhaltung landen in der Datei, erscheinen in dem Fenster aber erst nach dem Neuöffnen.
 - **Kein Auto-Neustart**: Terminal schließen / Reboot / Absturz stoppt den Server. Nutze `pm2`, `launchd` (mac) oder die Aufgabenplanung (win).
+- **Nach einem Update zeigt ein entferntes Gerät eine alte Version**: einmal neu laden (der Service Worker der PWA wechselt die Version), gelegentlich zweimal. Der Versionsstempel unten im **⚙**-Menü für erweiterte Optionen (`vX.Y.Z`) zeigt, welchen Build das Gerät tatsächlich geladen hat.
+- **Werbeblocker**: UI-Elementnamen vermeiden bewusst `ad`/`adv` usw., damit kosmetische Filter der Werbeblocker sie nicht als „Werbung“ ausblenden; wenn du die UI anpasst, vermeide solche Namen.
 
 ## Sicherheit
 
