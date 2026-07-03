@@ -10,7 +10,9 @@ Eine selbst gehostete PWA, um **die Claude-Code-Sitzungen auf deinem Rechner vom
 - **Token-für-Token-Streaming + Nachfassen mitten in der Aufgabe**: Antworten erscheinen, während Claude sie schreibt; eine Nachricht an eine laufende Sitzung wird in den Live-Prozess eingespeist (läuft im nächsten Turn, kein Kaltstart); Sitzungen laufen parallel
 - Schlüssel-Login (beim ersten Start automatisch generiert)
 - Sauberes Markdown-Rendering (DOMPurify-bereinigt), Syntax-Highlighting, Bilder einfügen/anhängen
-- Von Claude erzeugte Bilder / Audio / Videos / PDFs ansehen; Dev-Server auf dem Handy voranschauen
+- Von Claude erzeugte Bilder / Audio / Videos / PDFs ansehen; Dev-Server auf dem Handy voranschauen; **statische HTML-Prototypen werden direkt auf dem Handy gerendert** (sandboxed, ohne eigenen Server starten zu müssen)
+- **Werkzeug-Panel**: Nutzungs-/Kostenstatistik · Galerie erzeugter Medien · Umschalten zwischen mehreren Servern per Tipp
+- Sitzungen lassen sich **anheften / archivieren** — auch bei langer Liste leicht auffindbar
 - Eingebauter Dateibrowser + Markdown-Reader
 - **8 UI-Sprachen**, helle/dunkle Themes, einstellbarer Denk-Aufwand, Spracheingabe
 - Als App installierbar, Push-Benachrichtigungen bei Aufgabenende — pro Gerät lokalisiert
@@ -84,7 +86,9 @@ Gibt eine `https://xxxx.trycloudflare.com`-URL aus — am Handy öffnen, Schlüs
   | Planmodus `plan` | Nur planen, keine Änderungen |
 - **Modell**: Standard / Fable 5 / Opus / Sonnet / Haiku · **Aufwand**: Standard / Niedrig / Mittel / Hoch / Sehr hoch / Max
 - Oben rechts: **Sprache** (8) und **Theme**. Neben dem Eingabefeld: **Spracheingabe**.
-- Der **Dateien**-Button in der Seitenleiste durchsucht den Sitzungsordner; `.md` öffnet im eingebauten Reader.
+- Der **Dateien**-Button in der Seitenleiste durchsucht den Sitzungsordner; `.md` öffnet im eingebauten Reader, und `.html` wird auf dem Handy **als Webseite gerendert** (sandboxed).
+- Oben rechts **⊞ Werkzeuge**: **Nutzung** (was jedes Projekt gekostet hat — zählt nur über PocketClaude gesendete Turns), **Galerie** (eine Wand aller in den Sitzungen erzeugten Bilder/Audio/Videos), **Server** (mehrere PocketClaude-Maschinen speichern und per Tipp mitsamt Schlüssel umschalten).
+- Sitzungszeilen lassen sich **anheften** (nach oben) oder **archivieren** (nach unten + abgedunkelt); diese Einstellungen werden lokal im Browser gespeichert.
 
 ### Hinweise / bekannte Grenzen
 
@@ -98,7 +102,7 @@ Gibt eine `https://xxxx.trycloudflare.com`-URL aus — am Handy öffnen, Schlüs
 - Alles außer der PWA-Hülle erfordert den Schlüssel (timing-sicherer Vergleich; HttpOnly-Cookie).
 - `/media` und `/files` sind auf dein Home-Verzeichnis beschränkt (mit Pfadgrenzen-Prüfung).
 - Die interaktive Bestätigung ist **fail-closed**: Erreicht die Brücke den Server nicht, wird abgelehnt.
-- Alles Markdown wird mit DOMPurify bereinigt; Textdateien (inkl. HTML) werden als `text/plain` ausgeliefert.
+- Alle Markdown-Ausgaben werden mit DOMPurify bereinigt; `/media` liefert Textdateien (inkl. HTML) als `text/plain`. Um eine `.html` als echte Seite vorzuschauen, rendert `/html` sie unter einer **`sandbox`-CSP** (opaque origin): ihr eigenes JS läuft, aber sie kann weder das Auth-Cookie berühren noch Same-Origin-APIs erreichen.
 - `/proxy` erreicht nur Ports, die in einer Sitzung vorkamen (erweiterbar über `CC_PROXY_ALLOW`).
 - `/auth` drosselt Brute-Force; Sitzungen im OS-Temp-Verzeichnis werden ausgeblendet.
 - `.audit.log` protokolliert Anmeldungen, Sendungen, Stopps und Berechtigungsentscheidungen.

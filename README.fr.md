@@ -10,7 +10,9 @@ Une PWA auto-hébergée pour **contrôler et surveiller à distance les sessions
 - **Streaming token par token + relances en cours de tâche** : les réponses s'affichent au fil de l'écriture ; envoyer à une session active l'alimente au processus en cours (exécuté au tour suivant, sans démarrage à froid) ; les sessions tournent en parallèle
 - Connexion par clé (générée automatiquement au premier lancement)
 - Rendu Markdown propre (assaini par DOMPurify), coloration syntaxique, coller/joindre des images
-- Voir les images / audio / vidéos / PDF générés par Claude ; prévisualiser un dev server sur le téléphone
+- Voir les images / audio / vidéos / PDF générés par Claude ; prévisualiser un dev server sur le téléphone ; **les prototypes HTML statiques s'affichent directement sur le téléphone** (en bac à sable, sans avoir à lancer votre propre serveur)
+- **Panneau d'outils** : statistiques d'usage/coût · galerie des médias générés · bascule entre plusieurs serveurs en un geste
+- Les sessions peuvent être **épinglées / archivées** — faciles à retrouver même quand la liste s'allonge
 - Explorateur de fichiers intégré + lecteur Markdown
 - **8 langues d'interface**, thèmes clair/sombre, effort de réflexion réglable, saisie vocale
 - Installable comme app, notifications push à la fin des tâches — localisées par appareil
@@ -84,7 +86,9 @@ Affiche une URL `https://xxxx.trycloudflare.com` — ouvrez-la sur votre télép
   | Mode plan `plan` | Planifie seulement, aucun changement |
 - **Modèle** : Défaut / Fable 5 / Opus / Sonnet / Haiku · **Effort** : Défaut / Faible / Moyen / Élevé / Très élevé / Max
 - En haut à droite : **langue** (8) et **thème**. À côté du champ : **saisie vocale**.
-- Le bouton **Fichiers** de la barre latérale explore le dossier de la session ; les `.md` s'ouvrent dans le lecteur intégré.
+- Le bouton **Fichiers** de la barre latérale explore le dossier de la session ; les `.md` s'ouvrent dans le lecteur intégré, et `.html` **s'affiche comme une page web** sur le téléphone (en bac à sable).
+- En haut à droite **⊞ Outils** : **Usage** (combien a coûté chaque projet — ne compte que les tours envoyés via PocketClaude), **Galerie** (un mur de toutes les images/audio/vidéos générés dans les sessions), **Serveurs** (enregistre plusieurs machines PocketClaude et bascule en un geste, en emportant la clé).
+- Les lignes de session peuvent être **épinglées** (en haut) ou **archivées** (en bas + atténuées) ; ces réglages sont stockés localement dans le navigateur.
 
 ### Notes / limites connues
 
@@ -98,7 +102,7 @@ Affiche une URL `https://xxxx.trycloudflare.com` — ouvrez-la sur votre télép
 - Tout sauf le shell de la PWA exige la clé (comparaison timing-safe ; cookie HttpOnly).
 - `/media` et `/files` sont confinés à votre répertoire personnel (avec vérification des limites de chemin).
 - L'approbation interactive est **fail-closed** : si le pont n'atteint pas le serveur, il refuse.
-- Tout le Markdown est assaini par DOMPurify ; les fichiers texte (HTML compris) sont servis en `text/plain`.
+- Toute la sortie Markdown est assainie avec DOMPurify ; `/media` sert les fichiers texte (y compris HTML) en `text/plain`. Pour prévisualiser un `.html` comme une vraie page, `/html` l'affiche sous une **CSP `sandbox`** (origine opaque) : son propre JS s'exécute, mais il ne peut ni toucher le cookie d'authentification ni atteindre les API de même origine.
 - `/proxy` n'atteint que les ports référencés par une session (étendez avec `CC_PROXY_ALLOW`).
 - `/auth` limite la force brute ; les sessions sous le répertoire temporaire de l'OS sont masquées.
 - `.audit.log` consigne connexions, envois, arrêts et décisions de permission.
