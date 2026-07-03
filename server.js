@@ -202,6 +202,27 @@ function saveSubs() {
 
 const connectedClients = new Set();
 
+// ── Usage tracking ────────────────────────────────────────────────────────
+// Claude Code transcripts (this CLI version) don't persist cost, but the
+// streaming `result` event does (total_cost_usd / duration / tokens). Capture
+// every turn PocketClaude drives into an append-only log so /usage can
+// aggregate per-project spend. NOTE: turns run directly in the Desktop app are
+// invisible here — this only covers what the web drove. Loaded in the boot block.
+const USAGE_FILE = path.join(__dirname, '.usage.log');
+const usageLog = [];
+function loadUsage() {
+  try {
+    if (!fs.existsSync(USAGE_FILE)) return;
+    for (const line of fs.readFileSync(USAGE_FILE, 'utf8').split('\n')) {
+      if (line.trim()) { try { usageLog.push(JSON.parse(line)); } catch {} }
+    }
+  } catch {}
+}
+function recordUsage(rec) {
+  usageLog.push(rec);
+  try { fs.appendFileSync(USAGE_FILE, JSON.stringify(rec) + '\n'); } catch {}
+}
+
 // One persistent streaming process PER SESSION (key: resumeSessionId or
 // '__spawn__' for a fresh chat). Each entry: { proc, mcpConfig, key,
 // cliSessionId, buf, idleTimer }. The process stays alive between turns for
@@ -211,7 +232,12 @@ const STREAM_IDLE_MS = 5 * 60 * 1000;   // close an idle live session after 5 mi
 function clearIdle(entry) { if (entry?.idleTimer) { clearTimeout(entry.idleTimer); entry.idleTimer = null; } }
 function armIdle(entry) {
   clearIdle(entry);
-  entry.idleTimer = setTimeout(() => { try { entry.proc.stdin.end(); } catch {} }, STREAM_IDLE_MS);
+  entry.idleTimer = setTimeout(() => {
+    try { entry.proc.stdin.end(); } catch {}   // ask the CLI to exit gracefully
+    // Belt-and-suspenders: if it doesn't exit on stdin close, force-kill so idle
+    // processes never accumulate. proc.on('close') clears this via clearIdle.
+    entry.idleTimer = setTimeout(() => killTree(entry.proc), 15000);
+  }, STREAM_IDLE_MS);
 }
 
 // Kill the whole process tree — on Windows, proc.kill() leaves claude's
@@ -635,6 +661,21 @@ function handleStreamLine(entry, key, line) {
     // only the first result of a turn should end it / notify.
     if (!entry.turnActive) return;
     entry.turnActive = false;
+    // Capture cost/tokens for the usage dashboard (PocketClaude-driven turns only).
+    try {
+      const u = o.usage || {};
+      recordUsage({
+        ts: Date.now(),
+        sid: sid || '',
+        cwd: entry.cwd || (sid && tailedSessions.get(sid)?.cwd) || '',
+        cost: Number(o.total_cost_usd) || 0,
+        durationMs: Number(o.duration_ms) || 0,
+        apiMs: Number(o.duration_api_ms) || 0,
+        turns: Number(o.num_turns) || 0,
+        inTok: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0),
+        outTok: u.output_tokens || 0,
+      });
+    } catch {}
     broadcast({ type: 'turn_end', key, sessionId: sid });
     const s = sid && tailedSessions.get(sid);
     sendPush('done', s ? path.basename(s.cwd || '') : '', { sessionId: sid || '' });
@@ -678,7 +719,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
 
   const effectiveCwd = cwd || (resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd) || process.cwd();
   const proc = spawn(CLAUDE_PATH, args, { cwd: effectiveCwd, env: process.env });
-  const entry = { proc, mcpConfig, key, cliSessionId: resumeSessionId || null, buf: '', turnActive: true };
+  const entry = { proc, mcpConfig, key, cliSessionId: resumeSessionId || null, buf: '', turnActive: true, cwd: effectiveCwd };
   activeSpawns.set(key, entry);
   broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
 
@@ -888,6 +929,45 @@ app.get('/media', (req, res) => {
     fs.createReadStream(abs).pipe(res);
   }
 });
+// Render a local .html file as an ACTUAL web page for the phone — but sandboxed.
+// (/media serves .html as text/plain on purpose; here we serve text/html so a
+// generated prototype renders. The `sandbox` CSP forces the doc into an opaque
+// origin: its own JS runs, but it can't ride the cc_auth cookie into same-origin
+// requests — SameSite=Lax won't attach for an opaque-origin initiator — nor
+// script this app. Trade-off: an opaque origin has no localStorage, so a
+// prototype that persists there falls back to defaults but still renders.)
+app.get('/html', (req, res) => {
+  const raw = req.query.path;
+  if (!raw) return res.status(400).end('no path');
+  const home = os.homedir();
+  const underHome = p => {
+    const a = process.platform === 'win32' ? p.toLowerCase() : p;
+    const h = process.platform === 'win32' ? home.toLowerCase() : home;
+    return a === h || a.startsWith(h + path.sep);
+  };
+  const candidates = [];
+  try { candidates.push(path.resolve(raw)); } catch {}
+  if (req.query.base) { try { candidates.push(path.resolve(req.query.base, raw.replace(/^[\\/]+/, ''))); } catch {} }
+  let abs = null;
+  for (const c of candidates) {
+    if (!underHome(c)) continue;
+    try { if (fs.statSync(c).isFile()) { abs = c; break; } } catch {}
+  }
+  if (!abs && req.query.base) {
+    const baseAbs = path.resolve(req.query.base);
+    if (underHome(baseAbs)) {
+      const hit = findUnder(baseAbs, raw);
+      if (hit && underHome(hit)) { try { if (fs.statSync(hit).isFile()) abs = hit; } catch {} }
+    }
+  }
+  if (!abs) return res.status(404).end('not found (or outside home)');
+  if (!/\.html?$/i.test(abs)) return res.status(400).end('not an html file');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Security-Policy', "sandbox allow-scripts allow-forms allow-popups allow-modals;");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  fs.createReadStream(abs).pipe(res);
+});
+
 // List a directory (for the file browser). Confined to the user's home dir,
 // like /media. Returns dirs first, then files, each with size/mtime.
 app.get('/files', (req, res) => {
@@ -911,6 +991,83 @@ app.get('/files', (req, res) => {
   items.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
   const parent = path.dirname(dir);
   res.json({ path: dir, parent: (parent !== dir && underHome(parent)) ? parent : null, items });
+});
+
+// Aggregate captured usage per project → the usage dashboard.
+app.get('/usage', (_, res) => {
+  const byProj = new Map();
+  let since = Infinity;
+  for (const r of usageLog) {
+    const key = r.cwd || r.sid || '(unknown)';
+    let p = byProj.get(key);
+    if (!p) { p = { project: r.cwd ? path.basename(r.cwd) : (r.sid || '?').slice(0, 8), cwd: r.cwd || '', cost: 0, durationMs: 0, turns: 0, inTok: 0, outTok: 0, count: 0, last: 0 }; byProj.set(key, p); }
+    p.cost += r.cost || 0; p.durationMs += r.durationMs || 0; p.turns += r.turns || 0;
+    p.inTok += r.inTok || 0; p.outTok += r.outTok || 0; p.count++;
+    if (r.ts > p.last) p.last = r.ts;
+    if (r.ts < since) since = r.ts;
+  }
+  const rows = [...byProj.values()].sort((a, b) => b.cost - a.cost);
+  const totals = rows.reduce((t, r) => ({
+    cost: t.cost + r.cost, durationMs: t.durationMs + r.durationMs, turns: t.turns + r.turns,
+    inTok: t.inTok + r.inTok, outTok: t.outTok + r.outTok, count: t.count + r.count,
+  }), { cost: 0, durationMs: 0, turns: 0, inTok: 0, outTok: 0, count: 0 });
+  res.json({ rows, totals, since: isFinite(since) ? since : null });
+});
+
+// Scan sessions' working dirs for generated media (images/audio/video) → a
+// browsable wall. Home-confined like /media; capped so a huge tree can't hang it.
+const GALLERY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp4', '.mov', '.webm', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac']);
+function mediaKind(ext) {
+  if (['.mp4', '.mov', '.webm'].includes(ext)) return 'video';
+  if (['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac'].includes(ext)) return 'audio';
+  return 'image';
+}
+app.get('/gallery', (req, res) => {
+  const home = os.homedir();
+  const underHome = p => {
+    const a = process.platform === 'win32' ? p.toLowerCase() : p;
+    const h = process.platform === 'win32' ? home.toLowerCase() : home;
+    return a === h || a.startsWith(h + path.sep);
+  };
+  // One session (?cwd=) or every resumable session's cwd (deduped).
+  const targets = [];
+  const seenCwd = new Set();
+  const addTarget = (cwd, name) => {
+    if (!cwd) return;
+    let abs; try { abs = path.resolve(cwd); } catch { return; }
+    if (seenCwd.has(abs) || !underHome(abs) || isTempCwd(abs)) return;
+    seenCwd.add(abs); targets.push({ cwd: abs, name: name || path.basename(abs) });
+  };
+  if (req.query.cwd) addTarget(req.query.cwd);
+  else for (const s of tailedSessions.values()) addTarget(s.cwd, s.displayName);
+
+  const MAX_PER = 250, MAX_TOTAL = 1000;
+  const files = [];
+  const seen = new Set();
+  let truncated = false;
+  for (const t of targets) {
+    if (files.length >= MAX_TOTAL) { truncated = true; break; }
+    let n = 0;
+    const walk = (dir, depth) => {
+      if (depth > 6 || n >= MAX_PER || files.length >= MAX_TOTAL) return;
+      let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of ents) {
+        if (n >= MAX_PER || files.length >= MAX_TOTAL) return;
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p, depth + 1); continue; }
+        const ext = path.extname(e.name).toLowerCase();
+        if (!GALLERY_EXT.has(ext) || seen.has(p)) continue;
+        seen.add(p);
+        let st; try { st = fs.statSync(p); } catch { continue; }
+        files.push({ path: p, name: e.name, kind: mediaKind(ext), size: st.size, mtime: st.mtimeMs, project: t.name, cwd: t.cwd });
+        n++;
+      }
+    };
+    walk(t.cwd, 0);
+  }
+  files.sort((a, b) => b.mtime - a.mtime);
+  res.json({ files, truncated, projects: targets.map(t => t.name) });
 });
 
 app.post('/run', (req, res) => {
@@ -1072,6 +1229,20 @@ module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, sl
 
 // ── Boot (only when run directly, not when require()d by a test) ──
 if (require.main === module) {
+  // The server is unsupervised — when it exits it MUST take its spawned CLI
+  // children with it. Windows does not kill children with the parent, so a
+  // dead server leaves orphaned `claude.exe` streaming processes running; they
+  // keep holding handles/locks under the Claude data dir, which then blocks the
+  // Desktop app from reopening ("程式正在使用中"). Reap them on every exit path.
+  let cleanedUp = false;
+  const cleanup = () => { if (cleanedUp) return; cleanedUp = true; try { killAllSpawns(); } catch {} };
+  process.on('exit', cleanup);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) {
+    try { process.on(sig, () => { cleanup(); process.exit(0); }); } catch {}
+  }
+  process.on('uncaughtException', err => { console.error(err); cleanup(); process.exit(1); });
+
+  loadUsage();
   sweepUploads();
   setInterval(sweepUploads, 6 * 3600 * 1000);
 
