@@ -623,9 +623,33 @@ function buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort
   return args;
 }
 
-// One user turn, as a stream-json input line for the CLI's stdin.
-function streamUserLine(text) {
-  return JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } }) + '\n';
+// Turn uploaded image paths (/uploads/xxx.png) into Anthropic image content
+// blocks so the CLI actually SEES them. Confined to UPLOADS_DIR; unreadable /
+// non-image entries are skipped. (Without this, images never reached Claude —
+// only the `[圖片: …]` text marker did.)
+const IMG_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
+function imageBlocks(imgPaths) {
+  const blocks = [];
+  for (const p of Array.isArray(imgPaths) ? imgPaths : []) {
+    try {
+      const abs = path.join(UPLOADS_DIR, path.basename(String(p)));   // ignore any dir part → confine to uploads
+      if (!abs.startsWith(UPLOADS_DIR + path.sep)) continue;
+      const media_type = IMG_MIME[path.extname(abs).toLowerCase()];
+      if (!media_type) continue;
+      blocks.push({ type: 'image', source: { type: 'base64', media_type, data: fs.readFileSync(abs).toString('base64') } });
+    } catch {}
+  }
+  return blocks;
+}
+
+// One user turn, as a stream-json input line for the CLI's stdin. Any attached
+// images ride along as image content blocks (see imageBlocks).
+function streamUserLine(text, imgPaths) {
+  const content = [];
+  if (text) content.push({ type: 'text', text });
+  content.push(...imageBlocks(imgPaths));
+  if (!content.length) content.push({ type: 'text', text: '' });
+  return JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n';
 }
 
 // Parse one stdout line from a streaming CLI process and turn it into client
@@ -688,7 +712,7 @@ function handleStreamLine(entry, key, line) {
 // One long-lived process per session key. A second send to the SAME session
 // writes another user turn to its stdin (runs after the current turn — no cold
 // start, and no more "blocked_busy"). Different sessions run in parallel.
-function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort, adv) {
+function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort, adv, imgPaths) {
   const key = resumeSessionId || '__spawn__';
 
   // Already running for this session → feed the follow-up over stdin (instant,
@@ -697,7 +721,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   if (existing) {
     clearIdle(existing);
     existing.turnActive = true;
-    try { existing.proc.stdin.write(streamUserLine(prompt)); } catch {}
+    try { existing.proc.stdin.write(streamUserLine(prompt, imgPaths)); } catch {}
     broadcast({ type: 'turn_start', key, sessionId: existing.cliSessionId || (key !== '__spawn__' ? key : null) });
     return;
   }
@@ -724,7 +748,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
 
   // Send the first user turn.
-  try { proc.stdin.write(streamUserLine(prompt)); } catch {}
+  try { proc.stdin.write(streamUserLine(prompt, imgPaths)); } catch {}
 
   proc.stdout.on('data', chunk => {
     scanPorts(chunk.toString());
@@ -784,8 +808,8 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'send') {
       const advUsed = msg.adv && typeof msg.adv === 'object'
         ? Object.keys(msg.adv).filter(k => msg.adv[k]) : [];
-      audit('send', { ip, session: msg.resumeSessionId || '(new)', cwd: msg.cwd || '', mode: msg.permissionMode, model: msg.model, adv: advUsed, len: (msg.text || '').length });
-      startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort, msg.adv);
+      audit('send', { ip, session: msg.resumeSessionId || '(new)', cwd: msg.cwd || '', mode: msg.permissionMode, model: msg.model, adv: advUsed, imgs: Array.isArray(msg.imgPaths) ? msg.imgPaths.length : 0, len: (msg.text || '').length });
+      startClaude(msg.cwd, msg.text, msg.resumeSessionId, msg.permissionMode, msg.model, msg.effort, msg.adv, msg.imgPaths);
     }
     else if (msg.type === 'stop') {
       audit('stop', { ip, key: msg.key || msg.sessionId || '(all)' });
