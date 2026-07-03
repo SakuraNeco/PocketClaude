@@ -1173,6 +1173,12 @@ function forwardToPort(port, pathWithQuery, req, res) {
         const ct = pres.headers['content-type'] || '';
         const out = { ...pres.headers };
         delete out['content-length'];
+        // Strip upstream frame-blocking so the client's in-app webview (an
+        // iframe) can show the dev server. Safe: /proxy is same-origin and
+        // auth-gated, and it's the user viewing their own server.
+        delete out['x-frame-options'];
+        if (typeof out['content-security-policy'] === 'string')
+          out['content-security-policy'] = out['content-security-policy'].replace(/;?\s*frame-ancestors[^;]*/gi, '');
         // NEVER let a CDN edge-cache proxied content: it sits behind our auth,
         // but Cloudflare caches .js/.css by extension and would then serve it
         // to anyone (verified leak before this header was added).
