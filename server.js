@@ -925,6 +925,35 @@ app.get('/status', (_, res) => res.json({
   sessions: [...tailedSessions.keys()],
 }));
 
+// ── Update check: compare the installed git HEAD with the repo's main branch
+// on GitHub (public API, free, unrelated to any Claude/API quota). Cached 1h so
+// even many reloads make at most one GitHub call per hour. The client hits this
+// once on open. localSha empty (non-git install) → status 'unknown', no nag.
+const GITHUB_REPO = process.env.CC_GITHUB_REPO || 'SakuraNeco/PocketClaude';
+let LOCAL_SHA = '';
+try { LOCAL_SHA = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim(); } catch {}
+const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return ''; } })();
+let versionCache = { at: 0, data: null };
+async function checkVersion() {
+  if (versionCache.data && Date.now() - versionCache.at < 3600 * 1000) return versionCache.data;
+  const out = { repo: GITHUB_REPO, version: PKG_VERSION, local: LOCAL_SHA, status: 'unknown', behind: 0, url: `https://github.com/${GITHUB_REPO}` };
+  if (LOCAL_SHA && typeof fetch === 'function') {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/compare/${LOCAL_SHA}...main`,
+        { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'PocketClaude' }, signal: AbortSignal.timeout(6000) });
+      if (r.ok) {
+        const j = await r.json();
+        out.status = j.status || 'unknown';   // behind | identical | ahead | diverged
+        out.behind = j.behind_by || 0;
+        if (j.permalink_url) out.url = `https://github.com/${GITHUB_REPO}/compare/${LOCAL_SHA.slice(0, 12)}...main`;
+      }
+    } catch {}
+  }
+  versionCache = { at: Date.now(), data: out };
+  return out;
+}
+app.get('/version', async (_, res) => { res.json(await checkVersion()); });
+
 // The MCP permission tool calls this; we ask the phone and hold the response
 // until the user decides (or a timeout auto-denies so the agent never hangs).
 app.post('/mcp-permission', (req, res) => {

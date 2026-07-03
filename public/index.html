@@ -91,6 +91,10 @@ body{
 #btn-theme,#btn-reload{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:transparent;border:none;color:var(--text2);font-size:18px;cursor:pointer;border-radius:8px;flex-shrink:0;transition:background .12s;}
 #btn-theme:active,#btn-reload:active{background:var(--bg2);}
 #lang-sel{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:3px 7px;font-size:12px;font-family:inherit;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;flex-shrink:0;}
+#update-pill{display:none;align-items:center;gap:4px;flex-shrink:0;background:rgba(50,215,75,.12);border:1px solid rgba(50,215,75,.35);color:var(--green);border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600;text-decoration:none;}
+#update-pill.on{display:flex;}
+#update-pill i{font-size:13px;}
+@media(max-width:639px){#update-pill #update-txt{display:none;}}
 
 /* ── Layout ── */
 #wrap{display:flex;flex:1;overflow:hidden;min-height:0;}
@@ -460,6 +464,7 @@ body{
     <option value="fr">FR</option>
     <option value="de">DE</option>
   </select>
+  <a id="update-pill" href="#" target="_blank" rel="noopener" title=""><i class="ti ti-arrow-up-circle"></i> <span id="update-txt"></span></a>
   <button id="btn-theme" onclick="toggleTheme()" aria-label="切換明暗主題"><i class="ti ti-sun"></i></button>
   <button id="btn-stop" onclick="stopSpawn()"><i class="ti ti-player-stop-filled"></i> 停止</button>
 </div>
@@ -605,6 +610,7 @@ const I18N = {
     login_prompt:'請輸入 PocketClaude 登入密鑰',
     login_go:'登入', login_bad:'密鑰錯誤，請再試一次',
     reload:'重新整理',
+    update_avail:'有新版本', up_to_date:'已是最新版',
     push_enable:'啟用完成通知',
     ios_install:'iPhone：點「分享 → 加入主畫面」，從主畫面開啟才能開推播',
     ios_alert:'iPhone 上要先把這個網站「分享 → 加入主畫面」，再從主畫面圖示開啟，才能啟用推播。',
@@ -630,6 +636,7 @@ const I18N = {
     login_prompt:'Enter your PocketClaude login key',
     login_go:'Sign in', login_bad:'Wrong key — try again',
     reload:'Reload',
+    update_avail:'Update available', up_to_date:'Up to date',
     push_enable:'Enable notifications',
     ios_install:'iPhone: Share → Add to Home Screen, then open from there to enable push',
     ios_alert:'On iPhone, add this site to your Home Screen (Share → Add to Home Screen) and open it from there to enable push notifications.',
@@ -655,6 +662,7 @@ const I18N = {
     login_prompt:'PocketClaude のログインキーを入力してください',
     login_go:'ログイン', login_bad:'キーが違います。もう一度どうぞ',
     reload:'再読み込み',
+    update_avail:'新しいバージョンあり', up_to_date:'最新です',
     push_enable:'通知を有効にする',
     ios_install:'iPhone：共有 → ホーム画面に追加してから開くと通知が使えます',
     ios_alert:'iPhone では先にこのサイトを「共有 → ホーム画面に追加」し、ホーム画面から開くと通知を有効にできます。',
@@ -680,6 +688,7 @@ const I18N = {
     login_prompt:'请输入 PocketClaude 登录密钥',
     login_go:'登录', login_bad:'密钥错误，请再试一次',
     reload:'刷新',
+    update_avail:'有新版本', up_to_date:'已是最新版',
     push_enable:'启用完成通知',
     ios_install:'iPhone：点「分享 → 添加到主屏幕」，从主屏幕打开才能开推送',
     ios_alert:'iPhone 上要先把这个网站「分享 → 添加到主屏幕」，再从主屏幕图标打开，才能启用推送。',
@@ -705,6 +714,7 @@ const I18N = {
     login_prompt:'PocketClaude 로그인 키를 입력하세요',
     login_go:'로그인', login_bad:'키가 올바르지 않습니다. 다시 시도하세요',
     reload:'새로고침',
+    update_avail:'새 버전 있음', up_to_date:'최신 버전',
     push_enable:'알림 켜기',
     ios_install:'iPhone: 공유 → 홈 화면에 추가 후, 홈 화면에서 열면 알림을 켤 수 있어요',
     ios_alert:'iPhone에서는 먼저 이 사이트를 「공유 → 홈 화면에 추가」하고 홈 화면 아이콘으로 열어야 알림을 켤 수 있습니다.',
@@ -730,6 +740,7 @@ const I18N = {
     login_prompt:'Introduce tu clave de acceso de PocketClaude',
     login_go:'Entrar', login_bad:'Clave incorrecta, inténtalo de nuevo',
     reload:'Recargar',
+    update_avail:'Actualización disponible', up_to_date:'Actualizado',
     push_enable:'Activar notificaciones',
     ios_install:'iPhone: Compartir → Añadir a pantalla de inicio, y ábrelo desde ahí para activar las notificaciones',
     ios_alert:'En iPhone, añade este sitio a tu pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde ahí para activar las notificaciones.',
@@ -755,6 +766,7 @@ const I18N = {
     login_prompt:'Entrez votre clé de connexion PocketClaude',
     login_go:'Connexion', login_bad:'Clé incorrecte, réessayez',
     reload:'Recharger',
+    update_avail:'Mise à jour disponible', up_to_date:'À jour',
     push_enable:'Activer les notifications',
     ios_install:'iPhone : Partager → Sur l\'écran d\'accueil, puis ouvrez depuis là pour activer les notifications',
     ios_alert:'Sur iPhone, ajoutez ce site à votre écran d\'accueil (Partager → Sur l\'écran d\'accueil) et ouvrez-le depuis là pour activer les notifications.',
@@ -780,6 +792,7 @@ const I18N = {
     login_prompt:'PocketClaude-Anmeldeschlüssel eingeben',
     login_go:'Anmelden', login_bad:'Falscher Schlüssel — bitte erneut versuchen',
     reload:'Neu laden',
+    update_avail:'Update verfügbar', up_to_date:'Aktuell',
     push_enable:'Benachrichtigungen aktivieren',
     ios_install:'iPhone: Teilen → Zum Home-Bildschirm, dann von dort öffnen, um Push zu aktivieren',
     ios_alert:'Auf dem iPhone diese Seite zuerst zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen, um Push-Benachrichtigungen zu aktivieren.',
@@ -1863,6 +1876,7 @@ function applyLang(l) {
   setOpts('effort-sel', { default:'effort_default', low:'effort_low', medium:'effort_medium', high:'effort_high', xhigh:'effort_xhigh', max:'effort_max' });
   if (pushMode) showPushBar(pushMode);
   const rl = $('btn-reload'); if (rl) { rl.title = T('reload'); rl.setAttribute('aria-label', T('reload')); }
+  const up = $('update-txt'); if (up && $('update-pill').classList.contains('on')) up.textContent = T('update_avail');
   // login overlay labels
   $('login-sub').textContent = T('login_prompt');
   $('login-go').textContent = T('login_go');
@@ -1886,10 +1900,27 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// One-time update check on open: ask the server how far the installed copy is
+// behind the repo's main branch on GitHub. Uses GitHub's free public API (no
+// Claude/API quota), server-cached 1h. Shows a nav pill only when behind.
+async function checkForUpdate() {
+  try {
+    const v = await (await fetch('/version')).json();
+    const pill = $('update-pill');
+    if (v.status === 'behind' && v.behind > 0) {
+      pill.href = v.url || '#';
+      pill.title = `${v.behind} ${v.behind === 1 ? 'commit' : 'commits'} behind${v.version ? ' · v' + v.version : ''}`;
+      $('update-txt').textContent = T('update_avail');
+      pill.classList.add('on');
+    }
+  } catch {}
+}
+
 (async () => {
   if (!(await ensureAuth())) return;
   ensurePush();
   connect();
+  checkForUpdate();   // once, on open
 })();
 </script>
 </body>
