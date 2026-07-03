@@ -9,8 +9,8 @@ Eine selbst gehostete PWA, um **die Claude-Code-Sitzungen auf deinem Rechner vom
 - **Einzelbestätigung**: Bevor Claude ein Werkzeug ausführt, kommt eine Push-Benachrichtigung — erlauben/ablehnen per Tipp
 - **Token-für-Token-Streaming + Nachfassen mitten in der Aufgabe**: Antworten erscheinen, während Claude sie schreibt; eine Nachricht an eine laufende Sitzung wird in den Live-Prozess eingespeist (läuft im nächsten Turn, kein Kaltstart); Sitzungen laufen parallel
 - Schlüssel-Login (beim ersten Start automatisch generiert)
-- Sauberes Markdown-Rendering (DOMPurify-bereinigt), Syntax-Highlighting, Bilder einfügen/anhängen
-- Von Claude erzeugte Bilder / Audio / Videos / PDFs ansehen; Dev-Server auf dem Handy voranschauen; **statische HTML-Prototypen werden direkt auf dem Handy gerendert** (sandboxed, ohne eigenen Server starten zu müssen)
+- Sauberes Markdown-Rendering (DOMPurify-bereinigt), Syntax-Highlighting, **Bilder einfügen／auswählen, damit Claude sie sieht** (Vision)
+- Von Claude erzeugte Bilder / Audio / Videos / PDFs ansehen; Dev-Server auf dem Handy voranschauen; **statische HTML-Prototypen werden direkt auf dem Handy gerendert** (sandboxed, ohne eigenen Server starten zu müssen) — Vorschauen öffnen in der App mit einem Zurück-Button, ohne die PWA ohne Rückweg zu überdecken
 - **Werkzeug-Panel**: Nutzungs-/Kostenstatistik · Galerie erzeugter Medien · Umschalten zwischen mehreren Servern per Tipp
 - Sitzungen lassen sich **anheften / archivieren** — auch bei langer Liste leicht auffindbar
 - Eingebauter Dateibrowser + Markdown-Reader

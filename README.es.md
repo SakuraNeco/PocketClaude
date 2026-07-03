@@ -9,8 +9,8 @@ Una PWA autoalojada para **controlar y monitorizar a distancia las sesiones de C
 - **Aprobación por herramienta**: antes de que Claude ejecute cualquier herramienta, recibe una notificación push y toca permitir/denegar
 - **Streaming token a token + seguimientos a mitad de tarea**: las respuestas aparecen mientras Claude escribe; enviar a una sesión activa la alimenta al proceso en vivo (se ejecuta en el siguiente turno, sin arranque en frío); las sesiones corren en paralelo
 - Inicio de sesión con clave (generada automáticamente en el primer arranque)
-- Renderizado Markdown limpio (sanitizado con DOMPurify), resaltado de sintaxis, pegar/adjuntar imágenes
-- Ver imágenes / audio / vídeo / PDFs generados por Claude; previsualizar un dev server en el móvil; **los prototipos HTML estáticos se renderizan directamente en el móvil** (en sandbox, sin necesidad de levantar tu propio servidor)
+- Renderizado Markdown limpio (sanitizado con DOMPurify), resaltado de sintaxis, **pega/adjunta imágenes para que Claude las vea** (visión)
+- Ver imágenes / audio / vídeo / PDFs generados por Claude; previsualizar un dev server en el móvil; **los prototipos HTML estáticos se renderizan directamente en el móvil** (en sandbox, sin necesidad de levantar tu propio servidor) — las vistas previas se abren dentro de la app con un botón de Atrás, así no cubren la PWA sin salida
 - **Panel de herramientas**: estadísticas de uso/coste · galería de medios generados · cambio entre varios servidores con un toque
 - Las sesiones se pueden **fijar / archivar** — fáciles de encontrar aunque la lista sea larga
 - Explorador de archivos integrado + lector de Markdown

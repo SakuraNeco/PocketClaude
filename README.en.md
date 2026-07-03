@@ -9,8 +9,8 @@ A self-hosted PWA to **remote-control and monitor the Claude Code sessions runni
 - **Per-tool approval**: before Claude runs any tool, get a push notification and tap allow/deny
 - **Live token-by-token streaming + mid-task follow-ups**: replies stream as Claude writes them; message a running session and it feeds the live process (runs next turn, no cold start); sessions run in parallel
 - Key-based login (auto-generated on first launch)
-- Clean Markdown rendering (DOMPurify-sanitized), syntax highlighting, image paste/attach
-- View images / audio / video / PDFs Claude generates; open a local dev server on your phone via reverse proxy; **static HTML prototypes render directly on the phone** (sandboxed, no need to spin up your own server)
+- Clean Markdown rendering (DOMPurify-sanitized), syntax highlighting, **paste/attach images for Claude to see** (vision)
+- View images / audio / video / PDFs Claude generates; open a local dev server on your phone via reverse proxy; **static HTML prototypes render directly on the phone** (sandboxed, no need to spin up your own server) — previews open in-app with a Back button, so a home-screen PWA isn't covered with no way back
 - **Tools panel**: usage/cost stats · output media gallery · one-tap switching between multiple servers
 - Sessions can be **pinned / archived** — easy to find even when the list gets long
 - Built-in file browser + styled Markdown reader

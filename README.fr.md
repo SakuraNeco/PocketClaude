@@ -9,8 +9,8 @@ Une PWA auto-hébergée pour **contrôler et surveiller à distance les sessions
 - **Approbation par outil** : avant que Claude n'exécute un outil, recevez une notification push et touchez autoriser/refuser
 - **Streaming token par token + relances en cours de tâche** : les réponses s'affichent au fil de l'écriture ; envoyer à une session active l'alimente au processus en cours (exécuté au tour suivant, sans démarrage à froid) ; les sessions tournent en parallèle
 - Connexion par clé (générée automatiquement au premier lancement)
-- Rendu Markdown propre (assaini par DOMPurify), coloration syntaxique, coller/joindre des images
-- Voir les images / audio / vidéos / PDF générés par Claude ; prévisualiser un dev server sur le téléphone ; **les prototypes HTML statiques s'affichent directement sur le téléphone** (en bac à sable, sans avoir à lancer votre propre serveur)
+- Rendu Markdown propre (assaini par DOMPurify), coloration syntaxique, **collez/joignez des images pour que Claude les voie** (vision)
+- Voir les images / audio / vidéos / PDF générés par Claude ; prévisualiser un dev server sur le téléphone ; **les prototypes HTML statiques s'affichent directement sur le téléphone** (en bac à sable, sans avoir à lancer votre propre serveur) — les aperçus s'ouvrent dans l'application avec un bouton Retour, sans recouvrir la PWA sans issue
 - **Panneau d'outils** : statistiques d'usage/coût · galerie des médias générés · bascule entre plusieurs serveurs en un geste
 - Les sessions peuvent être **épinglées / archivées** — faciles à retrouver même quand la liste s'allonge
 - Explorateur de fichiers intégré + lecteur Markdown
