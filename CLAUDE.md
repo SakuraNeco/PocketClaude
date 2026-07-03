@@ -73,3 +73,17 @@ Interactive tool cards (client): `ExitPlanMode` → markdown plan card, `TodoWri
 ## Cross-platform notes
 
 The code is already OS-conditional: `findClaudePath()` auto-detects the CLI (Desktop bundle → standalone locations → PATH; `CLAUDE_PATH` env overrides), `claudeAppDir()` resolves the Desktop app's data dir per OS (`%APPDATA%` / `~/Library/Application Support` / `~/.config`), and `~/.claude` paths use `os.homedir()`. Sessions whose cwd lives under `os.tmpdir()` are filtered out of the resumable list (`isTempCwd`). The only per-OS decision left to the user is how to keep the server alive (Task Scheduler / `launchd` / `pm2` / `nohup`).
+
+## Roadmap / TODO
+
+**Done** (this repo already ships all of these): parallel per-session tasks, **persistent streaming with token-by-token render + mid-task interject**, history pagination, 8-language UI + READMEs, light/dark themes, thinking-effort + model selectors (incl. Fable 5), ⚙ advanced-CLI-flags menu (fork/worktree/read-only/…), file browser + Markdown viewer, dev-server `/proxy` (dual-stack + referer/cookie fallback), push deep-links, voice input, in-page login + nav reload button, security batch (proxy port whitelist, `/auth` throttle, upload sweep, `.audit.log`), self-hosted assets + offline SW, unit tests + CI, v1.1.0 tag.
+
+**Not doing** (deliberately declined — see `[[pocketclaude-auth-preference]]`): per-device tokens / QR / WebAuthn — the single shared key is preferred. Task Scheduler watchdog — user keeps the server manual/detached.
+
+**Candidate next steps**, roughly by value:
+1. **Multi-machine fleet** — one web client fronting several PocketClaude servers (home desktop + work laptop). The one thing the official `remote-control` (single-machine) can't do. Needs a server registry + per-server auth in the client.
+2. **Output gallery** — scan each session's generated images/video/audio into a browsable wall (pairs well with the user's ComfyUI / marketing-short / video pipelines).
+3. **Usage dashboard** — `result` events carry cost/duration; aggregate per-project daily spend.
+4. **Small polish** — session pin/archive (list is 12+), an optional "show thinking" toggle (currently `slim()` strips it), detect + label sessions that have an official `remote-control` channel.
+
+**Watch out**: after the streaming rewrite, the 8 READMEs' "one task per session / queued" wording is stale — they should say *mid-task follow-ups stream to the live session*. Fix on the next docs pass.
