@@ -153,7 +153,15 @@ app.use((req, res, next) => {
   if (tokenOk(reqToken(req))) return next();
   res.status(401).json({ error: 'unauthorized' });
 });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, p) {
+    // The app shell + service worker must NEVER be edge/browser-cached stale:
+    // over a Cloudflare tunnel a `public` HTML response can be served old to
+    // remote devices while localhost stays fresh (the "works here, stale there"
+    // bug). Force revalidation; assets stay cacheable (the SW handles them).
+    if (/\.html$/.test(p) || p.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  },
+}));
 
 // Exchange the shared secret for the auth cookie (so media/proxy URLs work
 // without ?token= on every link).

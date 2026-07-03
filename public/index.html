@@ -930,7 +930,7 @@ function toggleTheme() {
 
 // App build stamp — shown in the adv menu + console so we can tell instantly
 // which version a device actually loaded.
-const APP_VER = 'v1.1.1 (2026-07-02d)';
+const APP_VER = 'v1.1.2 (2026-07-03a)';
 try { console.log('PocketClaude', APP_VER); document.getElementById('app-ver').textContent = APP_VER; } catch {}
 
 // ── Marked setup — resilient: a blocked/missing lib must not kill the app ──
@@ -2262,6 +2262,17 @@ if ('serviceWorker' in navigator) {
     const sid = e.data?.type === 'open-session' && e.data.sessionId;
     if (sid && S[sid]) pick(sid);
   });
+  // When a NEW service worker takes over (i.e. an update shipped), reload ONCE so
+  // the page picks up the fresh shell — otherwise a remote device keeps showing
+  // the old UI until a manual refresh. Guarded to the "replaced an existing SW"
+  // case so a first-ever install doesn't reload.
+  if (navigator.serviceWorker.controller) {
+    let swReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (swReloaded) return; swReloaded = true;
+      location.reload();
+    });
+  }
 }
 
 // One-time update check on open: ask the server how far the installed copy is
