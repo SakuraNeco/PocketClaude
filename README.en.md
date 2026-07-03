@@ -7,7 +7,7 @@ A self-hosted PWA to **remote-control and monitor the Claude Code sessions runni
 - Watch every Claude Code conversation update live
 - Send prompts to continue any recent session — or start a new one
 - **Per-tool approval**: before Claude runs any tool, get a push notification and tap allow/deny
-- **Run tasks in parallel** across different sessions; queue follow-ups on a busy one
+- **Live token-by-token streaming + mid-task follow-ups**: replies stream as Claude writes them; message a running session and it feeds the live process (runs next turn, no cold start); sessions run in parallel
 - Key-based login (auto-generated on first launch)
 - Clean Markdown rendering (DOMPurify-sanitized), syntax highlighting, image paste/attach
 - View images / audio / video / PDFs Claude generates; open a local dev server on your phone via reverse proxy
@@ -87,7 +87,7 @@ Prints a `https://xxxx.trycloudflare.com` URL — open it on your phone, enter t
 
 ### Notes / limitations
 
-- **One task per session** at a time; a second send to a busy session is queued and flushed when it finishes. Different sessions run in parallel.
+- **Persistent streaming sessions**: replies render token-by-token; a send to a busy session is streamed into the live process (runs after the current turn — no cold start), so you can add instructions or ask follow-ups without a restart. Sessions run in parallel; each process exits after 5 min idle.
 - **You can't control PocketClaude's own session** from the web (it would restart and kill the server) — auto-blocked.
 - Messages sent to a session **currently open live in Desktop** are written to the transcript but won't appear in that Desktop window until it's reopened.
 - **No auto-restart**: closing the terminal / reboot / crash stops it. Use `pm2`, `launchd` (mac), Task Scheduler (win) to keep it alive.

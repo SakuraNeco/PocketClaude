@@ -7,7 +7,7 @@ Una PWA autoalojada para **controlar y monitorizar a distancia las sesiones de C
 - Mira todas las conversaciones de Claude Code actualizarse en vivo
 - Envía prompts para continuar cualquier sesión reciente — o iniciar una nueva
 - **Aprobación por herramienta**: antes de que Claude ejecute cualquier herramienta, recibe una notificación push y toca permitir/denegar
-- **Tareas en paralelo** entre sesiones distintas; los envíos a una sesión ocupada se ponen en cola
+- **Streaming token a token + seguimientos a mitad de tarea**: las respuestas aparecen mientras Claude escribe; enviar a una sesión activa la alimenta al proceso en vivo (se ejecuta en el siguiente turno, sin arranque en frío); las sesiones corren en paralelo
 - Inicio de sesión con clave (generada automáticamente en el primer arranque)
 - Renderizado Markdown limpio (sanitizado con DOMPurify), resaltado de sintaxis, pegar/adjuntar imágenes
 - Ver imágenes / audio / vídeo / PDFs generados por Claude; previsualizar un dev server en el móvil
@@ -88,7 +88,7 @@ Imprime una URL `https://xxxx.trycloudflare.com` — ábrela en el móvil e intr
 
 ### Notas / limitaciones conocidas
 
-- **Una tarea por sesión** a la vez; un segundo envío a una sesión ocupada se encola y se envía al terminar. Sesiones distintas corren en paralelo.
+- **Sesiones de streaming persistentes**: las respuestas se renderizan token a token; un envío a una sesión ocupada se transmite al proceso en vivo (se ejecuta tras el turno actual, sin arranque en frío), así puedes añadir instrucciones o preguntar sin reiniciar. Las sesiones corren en paralelo; cada proceso termina tras 5 min inactivo.
 - **No puedes controlar la propia sesión de PocketClaude** desde la web (reiniciaría y mataría el servidor) — bloqueado automáticamente.
 - Los mensajes a una sesión **abierta en Desktop** se escriben en el archivo pero no aparecen en esa ventana hasta reabrirla.
 - **Sin reinicio automático**: cerrar la terminal / reiniciar / un crash lo detiene. Usa `pm2`, `launchd` (mac) o el Programador de tareas (win) para mantenerlo vivo.

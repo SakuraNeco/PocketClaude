@@ -7,7 +7,7 @@ Une PWA auto-hébergée pour **contrôler et surveiller à distance les sessions
 - Suivez toutes les conversations Claude Code en direct
 - Envoyez des prompts pour reprendre une session récente — ou en démarrer une nouvelle
 - **Approbation par outil** : avant que Claude n'exécute un outil, recevez une notification push et touchez autoriser/refuser
-- **Tâches en parallèle** entre sessions ; les envois vers une session occupée sont mis en file
+- **Streaming token par token + relances en cours de tâche** : les réponses s'affichent au fil de l'écriture ; envoyer à une session active l'alimente au processus en cours (exécuté au tour suivant, sans démarrage à froid) ; les sessions tournent en parallèle
 - Connexion par clé (générée automatiquement au premier lancement)
 - Rendu Markdown propre (assaini par DOMPurify), coloration syntaxique, coller/joindre des images
 - Voir les images / audio / vidéos / PDF générés par Claude ; prévisualiser un dev server sur le téléphone
@@ -88,7 +88,7 @@ Affiche une URL `https://xxxx.trycloudflare.com` — ouvrez-la sur votre télép
 
 ### Notes / limites connues
 
-- **Une tâche par session** à la fois ; un second envoi vers une session occupée est mis en file et parti à la fin. Les sessions différentes tournent en parallèle.
+- **Sessions de streaming persistantes** : les réponses s'affichent token par token ; un envoi vers une session occupée est transmis au processus en cours (exécuté après le tour actuel, sans démarrage à froid), pour ajouter des consignes ou relancer sans redémarrage. Les sessions tournent en parallèle ; chaque processus se ferme après 5 min d'inactivité.
 - **Impossible de contrôler la propre session de PocketClaude** depuis le web (elle redémarrerait et tuerait le serveur) — bloqué automatiquement.
 - Les messages vers une session **ouverte dans Desktop** sont écrits dans le fichier mais n'apparaissent dans cette fenêtre qu'après réouverture.
 - **Pas de redémarrage automatique** : fermer le terminal / redémarrer / un crash l'arrête. Utilisez `pm2`, `launchd` (mac) ou le Planificateur de tâches (win).

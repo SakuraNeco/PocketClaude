@@ -7,7 +7,7 @@ Eine selbst gehostete PWA, um **die Claude-Code-Sitzungen auf deinem Rechner vom
 - Alle Claude-Code-Unterhaltungen live verfolgen
 - Prompts senden, um jede Sitzung fortzusetzen — oder eine neue zu starten
 - **Einzelbestätigung**: Bevor Claude ein Werkzeug ausführt, kommt eine Push-Benachrichtigung — erlauben/ablehnen per Tipp
-- **Parallele Aufgaben** über verschiedene Sitzungen; Nachrichten an eine beschäftigte Sitzung landen in der Warteschlange
+- **Token-für-Token-Streaming + Nachfassen mitten in der Aufgabe**: Antworten erscheinen, während Claude sie schreibt; eine Nachricht an eine laufende Sitzung wird in den Live-Prozess eingespeist (läuft im nächsten Turn, kein Kaltstart); Sitzungen laufen parallel
 - Schlüssel-Login (beim ersten Start automatisch generiert)
 - Sauberes Markdown-Rendering (DOMPurify-bereinigt), Syntax-Highlighting, Bilder einfügen/anhängen
 - Von Claude erzeugte Bilder / Audio / Videos / PDFs ansehen; Dev-Server auf dem Handy voranschauen
@@ -88,7 +88,7 @@ Gibt eine `https://xxxx.trycloudflare.com`-URL aus — am Handy öffnen, Schlüs
 
 ### Hinweise / bekannte Grenzen
 
-- **Eine Aufgabe pro Sitzung** gleichzeitig; eine zweite Nachricht an eine beschäftigte Sitzung wird eingereiht und nach Abschluss gesendet. Verschiedene Sitzungen laufen parallel.
+- **Persistente Streaming-Sitzungen**: Antworten werden Token für Token dargestellt; eine Nachricht an eine beschäftigte Sitzung wird in den Live-Prozess eingespeist (läuft nach dem aktuellen Turn — kein Kaltstart), sodass du ohne Neustart Anweisungen ergänzen oder nachfragen kannst. Sitzungen laufen parallel; jeder Prozess endet nach 5 Min Leerlauf.
 - **PocketClaudes eigene Sitzung ist über das Web nicht steuerbar** (würde den Server neu starten und töten) — automatisch blockiert.
 - Nachrichten an eine **im Desktop geöffnete** Unterhaltung landen in der Datei, erscheinen in dem Fenster aber erst nach dem Neuöffnen.
 - **Kein Auto-Neustart**: Terminal schließen / Reboot / Absturz stoppt den Server. Nutze `pm2`, `launchd` (mac) oder die Aufgabenplanung (win).

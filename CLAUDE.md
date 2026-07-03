@@ -85,5 +85,3 @@ The code is already OS-conditional: `findClaudePath()` auto-detects the CLI (Des
 2. **Output gallery** — scan each session's generated images/video/audio into a browsable wall (pairs well with the user's ComfyUI / marketing-short / video pipelines).
 3. **Usage dashboard** — `result` events carry cost/duration; aggregate per-project daily spend.
 4. **Small polish** — session pin/archive (list is 12+), an optional "show thinking" toggle (currently `slim()` strips it), detect + label sessions that have an official `remote-control` channel.
-
-**Watch out**: after the streaming rewrite, the 8 READMEs' "one task per session / queued" wording is stale — they should say *mid-task follow-ups stream to the live session*. Fix on the next docs pass.
