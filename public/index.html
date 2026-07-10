@@ -2073,7 +2073,18 @@ $('prompt').addEventListener('input', () => { $('prompt').style.height=''; $('pr
 // ── Permission mode + model: remember the user's choice ──
 $('perm-mode').value = localStorage.getItem('permMode') || 'acceptEdits';
 $('perm-mode').addEventListener('change', () => localStorage.setItem('permMode', $('perm-mode').value));
-$('model-sel').value = localStorage.getItem('model') || 'default';
+// Default to Opus, not the CLI pass-through: with no --model, resuming a session
+// inherits whatever model it last ran on — during the Fable 5 promo that's Fable,
+// so "預設" silently gave Fable on every resume. One-time migrate old devices
+// off a stored 'default'; afterwards respect whatever the user picks (incl. 預設).
+(() => {
+  let m = localStorage.getItem('model');
+  if (!localStorage.getItem('modelMigrated')) {
+    if (!m || m === 'default') m = 'opus';
+    try { localStorage.setItem('model', m); localStorage.setItem('modelMigrated', '1'); } catch {}
+  }
+  $('model-sel').value = m || 'opus';
+})();
 $('model-sel').addEventListener('change', () => localStorage.setItem('model', $('model-sel').value));
 $('effort-sel').value = localStorage.getItem('effort') || 'default';
 $('effort-sel').addEventListener('change', () => localStorage.setItem('effort', $('effort-sel').value));
