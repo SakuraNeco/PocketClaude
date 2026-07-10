@@ -44,7 +44,12 @@ function findClaudePath() {
   // Claude Desktop's bundled CLI (newest version dir first)
   const ccBase = path.join(claudeAppDir(), 'claude-code');
   try {
-    for (const v of fs.readdirSync(ccBase).filter(v => /^\d/.test(v)).sort().reverse()) tryPaths.push(path.join(ccBase, v, exe));
+    for (const v of fs.readdirSync(ccBase).filter(v => /^\d/.test(v)).sort().reverse()) {
+      tryPaths.push(path.join(ccBase, v, exe));
+      // newer Desktop builds nest the CLI inside an .app bundle:
+      // claude-code/<version>/claude.app/Contents/MacOS/claude
+      tryPaths.push(path.join(ccBase, v, 'claude.app', 'Contents', 'MacOS', exe));
+    }
   } catch {}
   // standalone installer / common locations
   tryPaths.push(path.join(home, '.claude', 'local', exe));
@@ -59,7 +64,19 @@ function findClaudePath() {
   return 'claude';   // last resort: rely on PATH at spawn time
 }
 
-const CLAUDE_PATH = findClaudePath();
+// Resolved at boot, but Claude Desktop's auto-update REPLACES claude-code/<ver>/
+// and deletes the old dir — so a path cached at startup silently goes stale and
+// every spawn then fails with ENOENT (the turn never reaches Claude). Re-resolve
+// whenever the cached binary has vanished.
+let _claudePath = findClaudePath();
+function claudePath() {
+  if (_claudePath !== 'claude' && !fs.existsSync(_claudePath)) {
+    const next = findClaudePath();
+    if (next !== _claudePath) console.log(`claude CLI moved: ${_claudePath} → ${next}`);
+    _claudePath = next;
+  }
+  return _claudePath;
+}
 const PORT = process.env.PORT || 3000;
 const CLAUDE_HOME = path.join(os.homedir(), '.claude');
 const SESSIONS_DIR = path.join(CLAUDE_HOME, 'sessions');
@@ -750,7 +767,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
   const args = buildSpawnArgs({ prompt, resumeSessionId, permissionMode, model, effort, adv: adv || {}, mcpConfig, streaming: true });
 
   const effectiveCwd = cwd || (resumeSessionId && tailedSessions.get(resumeSessionId)?.cwd) || process.cwd();
-  const proc = spawn(CLAUDE_PATH, args, { cwd: effectiveCwd, env: process.env });
+  const proc = spawn(claudePath(), args, { cwd: effectiveCwd, env: process.env });
   const entry = { proc, mcpConfig, key, cliSessionId: resumeSessionId || null, buf: '', turnActive: true, cwd: effectiveCwd };
   activeSpawns.set(key, entry);
   broadcast({ type: 'spawn_start', cwd: effectiveCwd, resumeSessionId, key });
@@ -768,6 +785,16 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
     }
   });
   proc.stderr.on('data', chunk => broadcast({ type: 'spawn_stderr', text: chunk.toString() }));
+  // A spawn-level failure (ENOENT, EACCES, …) emits 'error' on the child; with
+  // no listener Node rethrows it as an uncaught exception and kills the whole
+  // server. Surface it to the client and clean up instead of dying.
+  proc.on('error', err => {
+    clearIdle(entry);
+    activeSpawns.delete(key);
+    if (mcpConfig) { try { fs.unlinkSync(mcpConfig); } catch {} }
+    broadcast({ type: 'spawn_stderr', text: `failed to start claude: ${err.code || ''} ${err.message}` });
+    broadcast({ type: 'spawn_end', code: -1, resumeSessionId, key, sessionId: entry.cliSessionId });
+  });
   proc.on('close', code => {
     clearIdle(entry);
     activeSpawns.delete(key);
@@ -1263,7 +1290,7 @@ app.use((req, res) => {
 
 // Pure, dependency-free helpers are exported for unit tests. Requiring this
 // module must NOT start the server or any timers — hence the boot guard below.
-module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, slim, buildSpawnArgs };
+module.exports = { cwdToProjectDir, isTempCwd, truncStr, tokenOk, renderable, slim, buildSpawnArgs, claudePath };
 
 // ── Boot (only when run directly, not when require()d by a test) ──
 if (require.main === module) {
@@ -1296,7 +1323,7 @@ if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`PocketClaude server → http://localhost:${PORT}`);
     console.log(`login key:   ${AUTH_TOKEN}`);
-    console.log(`claude CLI:  ${CLAUDE_PATH}`);
+    console.log(`claude CLI:  ${claudePath()}`);
     console.log(`cowork dir:  ${fs.existsSync(COWORK_DIR) ? COWORK_DIR : '(none — Cowork not installed)'}`);
     console.log(`Tunnel: npx cloudflared tunnel --url http://localhost:${PORT}`);
   });
