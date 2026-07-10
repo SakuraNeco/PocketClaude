@@ -142,12 +142,14 @@ body{
 
 /* Claude bubble — LEFT */
 .row-claude{display:flex;align-items:flex-start;gap:10px;padding:3px 14px;}
-.avatar{
-  width:30px;height:30px;border-radius:50%;
-  background:linear-gradient(135deg,#4f8ef7,#b57cf5);
-  display:flex;align-items:center;justify-content:center;
-  font-size:13px;color:#fff;font-weight:700;flex-shrink:0;margin-top:2px;
-}
+/* Per-message copy button (both directions). Rows with an actions bar stack
+   the bubble + bar in a column; user rows keep to the right, Claude to the left. */
+.row-user.has-actions{flex-direction:column;align-items:flex-end;gap:0;}
+.row-claude.has-actions{flex-direction:column;align-items:flex-start;gap:0;}
+.msg-actions{display:flex;gap:6px;margin:3px 4px 0;}
+.msg-copy{display:inline-flex;align-items:center;background:transparent;border:none;color:var(--text2);opacity:.5;border-radius:6px;padding:2px 5px;font-size:13px;line-height:1;cursor:pointer;transition:opacity .15s,color .15s;}
+.msg-copy:hover{opacity:1;color:var(--text);}
+.msg-copy.done{color:var(--green);opacity:1;}
 .bub-claude{
   background:var(--bg2);
   border-radius:5px 20px 20px 20px;
@@ -930,7 +932,7 @@ function toggleTheme() {
 
 // App build stamp — shown in the adv menu + console so we can tell instantly
 // which version a device actually loaded.
-const APP_VER = 'v1.1.2 (2026-07-03b)';
+const APP_VER = 'v1.1.4 (2026-07-05b)';
 try { console.log('PocketClaude', APP_VER); document.getElementById('app-ver').textContent = APP_VER; } catch {}
 
 // ── Marked setup — resilient: a blocked/missing lib must not kill the app ──
@@ -957,28 +959,49 @@ marked.use({ renderer });
 } catch (e) { console.error('marked init failed (blocked?)', e); }
 
 // Clipboard API rejects in plenty of real situations (iOS focus/permission
-// quirks, non-secure origins) — fall back to a hidden textarea + execCommand,
-// and always show success/failure so the button never feels dead.
+// quirks, non-secure origins) — fall back to a hidden textarea + execCommand.
+async function clip(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch { return false; }
+}
+// Always show success/failure so the button never feels dead.
 async function copyCode(id, btn) {
   const el = document.getElementById(id);
   if (!el) return;
-  const text = el.textContent;
-  let ok = false;
-  try { await navigator.clipboard.writeText(text); ok = true; } catch {}
-  if (!ok) {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
-      document.body.appendChild(ta);
-      ta.select(); ta.setSelectionRange(0, text.length);
-      ok = document.execCommand('copy');
-      ta.remove();
-    } catch {}
-  }
+  const ok = await clip(el.textContent);
   btn.innerHTML = ok ? `<i class="ti ti-check"></i> ${T('copied')}` : `<i class="ti ti-x"></i> ${T('copy_fail')}`;
   btn.classList.toggle('done', ok);
   setTimeout(() => { btn.innerHTML = `<i class="ti ti-copy"></i> ${T('copy')}`; btn.classList.remove('done'); }, 2000);
+}
+// Per-message copy button (icon only), appended below a user or Claude bubble.
+// The raw text (markdown source for Claude) is stashed on the button as a JS
+// property — no data-attribute escaping / size worries. Nothing to copy for
+// image-only user turns, so skip those.
+function appendCopy(row, text) {
+  if (!text || !text.trim()) return;
+  row.classList.add('has-actions');
+  const bar = document.createElement('div'); bar.className = 'msg-actions';
+  const b = document.createElement('button'); b.className = 'msg-copy'; b.type = 'button';
+  b.title = T('copy'); b.setAttribute('aria-label', T('copy'));
+  b.innerHTML = `<i class="ti ti-copy"></i>`;
+  b._copytext = text;
+  bar.appendChild(b);
+  row.appendChild(bar);
+}
+async function copyMsg(btn) {
+  const ok = await clip(btn._copytext || '');
+  btn.innerHTML = ok ? `<i class="ti ti-check"></i>` : `<i class="ti ti-x"></i>`;
+  btn.classList.toggle('done', ok);
+  setTimeout(() => { btn.innerHTML = `<i class="ti ti-copy"></i>`; btn.classList.remove('done'); }, 1500);
 }
 
 // Markdown → HTML, ALWAYS sanitized: transcripts contain untrusted text
@@ -1221,15 +1244,17 @@ let typingEl = null;
 // Delegated copy-button handler (code blocks come from sanitized markdown,
 // which can't carry inline onclick).
 msgs.addEventListener('click', e => {
-  const btn = e.target.closest('.code-copy');
-  if (btn && btn.dataset.cb) copyCode(btn.dataset.cb, btn);
+  const cb = e.target.closest('.code-copy');
+  if (cb && cb.dataset.cb) { copyCode(cb.dataset.cb, cb); return; }
+  const mc = e.target.closest('.msg-copy');
+  if (mc) copyMsg(mc);
 });
 
 function showTyping() {
   if (typingEl) return;
   typingEl = document.createElement('div');
   typingEl.className = 'row-typing';
-  typingEl.innerHTML = `<div class="avatar">C</div><div class="typing-dots"><span></span><span></span><span></span></div>`;
+  typingEl.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
   msgs.appendChild(typingEl);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1498,6 +1523,7 @@ function buildMsg(m) {
     }
     if (m.text) inner += `<div>${esc(m.text)}</div>`;
     d.innerHTML = `<div class="bub-user">${inner}</div>`;
+    appendCopy(d, m.text);
     return d;
   }
   if (m.type === 'text') {
@@ -1511,8 +1537,8 @@ function buildMsg(m) {
     if (devs.length) inner.appendChild(devEl(devs));
     const htmls = extractHtml(m.text);
     if (htmls.length) inner.appendChild(htmlEl(htmls));
-    d.innerHTML = `<div class="avatar">C</div>`;
     d.appendChild(inner);
+    appendCopy(d, m.text);
     return d;
   }
   if (m.type === 'tool') {
@@ -1721,7 +1747,7 @@ function paintLive() {
     if (!row) {
       hideTyping();
       row = document.createElement('div'); row.className = 'row-claude live';
-      row.innerHTML = '<div class="avatar">C</div><div class="bub-claude"></div>';
+      row.innerHTML = '<div class="bub-claude"></div>';
       msgs.appendChild(row);
     }
     row.querySelector('.bub-claude').innerHTML = renderMd(live.text);
