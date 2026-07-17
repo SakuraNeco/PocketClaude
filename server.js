@@ -817,6 +817,8 @@ wss.on('connection', (ws, req) => {
   if (!tokenOk(reqToken(req))) { audit('ws_denied', { ip: reqIp(req) }); ws.close(4401, 'unauthorized'); return; }
   const ip = reqIp(req);
   connectedClients.add(ws);
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });   // browser auto-pongs our ping
 
   // Send session list WITHOUT history (lazy-loaded per session on demand — the
   // combined history of all sessions can be tens of MB, far too much on mobile).
@@ -1319,6 +1321,19 @@ if (require.main === module) {
   } catch {}
 
   watchSessions();
+
+  // WS heartbeat: a tunnel/edge (Cloudflare, ngrok) silently drops a WebSocket
+  // that sits idle ~100s. Without traffic the socket goes half-open — the phone
+  // still believes it's connected, so a sent turn vanishes into a dead socket
+  // and the reply appears to hang forever. Ping every 25s (the browser auto-
+  // pongs) to keep the connection warm, and reap any client that missed a pong.
+  setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) { try { ws.terminate(); } catch {} continue; }
+      ws.isAlive = false;
+      try { ws.ping(); } catch {}
+    }
+  }, 25000);
 
   server.listen(PORT, () => {
     console.log(`PocketClaude server → http://localhost:${PORT}`);

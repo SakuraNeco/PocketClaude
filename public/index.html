@@ -932,7 +932,7 @@ function toggleTheme() {
 
 // App build stamp — shown in the adv menu + console so we can tell instantly
 // which version a device actually loaded.
-const APP_VER = 'v1.1.4 (2026-07-05b)';
+const APP_VER = 'v1.1.5 (2026-07-17)';
 try { console.log('PocketClaude', APP_VER); document.getElementById('app-ver').textContent = APP_VER; } catch {}
 
 // ── Marked setup — resilient: a blocked/missing lib must not kill the app ──
@@ -1721,6 +1721,13 @@ function connect() {
   };
 }
 
+// Coming back to the foreground (unlock / tab switch): iOS suspends the socket
+// while backgrounded, so it's often half-open on return. Reconnect immediately
+// instead of waiting for the next failed send or the 3s retry.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (!ws || ws.readyState > WebSocket.OPEN)) connect();
+});
+
 // Route a streaming event to a client session key: prefer the real session id
 // when we already track it, else the server's key ('__spawn__' for fresh chats).
 function rkey(msg) {
@@ -1770,6 +1777,16 @@ async function send() {
   const txt = $('prompt').value.trim();
   const hasImgs = pendingImages.filter(Boolean).length > 0;
   if (!txt && !hasImgs) return;
+
+  // Don't fire into a closed / half-open socket — the turn would vanish and the
+  // reply would appear to hang. Reconnect and keep the typed text so the user
+  // can just tap send again once the dot goes green. (The server's ping reaps a
+  // half-open socket within ~25s, flipping it to CLOSED so this guard catches it.)
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    setConn('conn_offline'); $('conn-dot').className = 'sdot';
+    if (!ws || ws.readyState === WebSocket.CLOSED) connect();
+    return;
+  }
 
   const resumeSessionId = (aid && aid !== '__spawn__') ? aid : null;
   const key = resumeSessionId || '__spawn__';

@@ -1,5 +1,5 @@
 // Bump to invalidate the cached shell after an asset changes.
-const CACHE = 'pocketclaude-v7';
+const CACHE = 'pocketclaude-v8';
 const SHELL = [
   '/', '/index.html', '/viewer.html', '/app.webmanifest', '/icon.svg',
   '/assets/marked.min.js', '/assets/highlight.min.js', '/assets/purify.min.js',
