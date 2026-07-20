@@ -150,6 +150,15 @@ body{
 .msg-copy{display:inline-flex;align-items:center;background:transparent;border:none;color:var(--text2);opacity:.5;border-radius:6px;padding:2px 5px;font-size:13px;line-height:1;cursor:pointer;transition:opacity .15s,color .15s;}
 .msg-copy:hover{opacity:1;color:var(--text);}
 .msg-copy.done{color:var(--green);opacity:1;}
+/* Failed turn (CLI stderr / zero-output turn) — never fail silently. */
+.bub-err{
+  display:flex;align-items:flex-start;gap:7px;
+  background:rgba(255,69,58,.10);border:1px solid rgba(255,69,58,.35);
+  color:#ff6961;border-radius:5px 20px 20px 20px;
+  padding:11px 15px;max-width:78%;
+  font-size:14px;line-height:1.6;word-break:break-word;white-space:pre-wrap;
+}
+.bub-err i{flex-shrink:0;margin-top:2px;}
 .bub-claude{
   background:var(--bg2);
   border-radius:5px 20px 20px 20px;
@@ -690,7 +699,7 @@ const I18N = {
     perm_interactive:'逐項核准', perm_acceptEdits:'自動編輯', perm_bypass:'完全自動', perm_plan:'規劃模式',
     model_default:'預設模型',
     effort_default:'預設深度', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'極高', effort_max:'最大',
-    copy:'複製', copied:'已複製', copy_fail:'複製失敗', download:'下載', open_phone:'在手機開啟 ',
+    empty_turn:'這一輪沒有任何輸出就結束了。最常見原因：本機 claude CLI 登入已過期（在電腦終端機執行 claude 重新登入）；或這個 session 無法從網頁端續接。', copy:'複製', copied:'已複製', copy_fail:'複製失敗', download:'下載', open_phone:'在手機開啟 ',
     plan_title:'執行計畫', todo_title:'待辦', ask_title:'需要你選擇',
     perm_pre:'要執行 ', perm_post:'，允許嗎？', allow:'允許', deny:'拒絕',
     res_allow:'已允許', res_deny:'已拒絕', res_timeout:'逾時（自動拒絕）',
@@ -726,7 +735,7 @@ const I18N = {
     perm_interactive:'Approve each', perm_acceptEdits:'Auto-edit', perm_bypass:'Full auto', perm_plan:'Plan mode',
     model_default:'Default model',
     effort_default:'Default effort', effort_low:'Low', effort_medium:'Medium', effort_high:'High', effort_xhigh:'X-High', effort_max:'Max',
-    copy:'Copy', copied:'Copied', copy_fail:'Failed', download:'Download', open_phone:'Open on phone: ',
+    empty_turn:'The turn ended without any output. Most likely the local claude CLI login has expired (run claude in a terminal to sign in again), or this session is not resumable from the web.', copy:'Copy', copied:'Copied', copy_fail:'Failed', download:'Download', open_phone:'Open on phone: ',
     plan_title:'Plan', todo_title:'To-dos', ask_title:'Your choice needed',
     perm_pre:'Run ', perm_post:' — allow?', allow:'Allow', deny:'Deny',
     res_allow:'Allowed', res_deny:'Denied', res_timeout:'Timed out (auto-denied)',
@@ -762,7 +771,7 @@ const I18N = {
     perm_interactive:'毎回承認', perm_acceptEdits:'自動編集', perm_bypass:'全自動', perm_plan:'プランモード',
     model_default:'デフォルトモデル',
     effort_default:'デフォルト', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'超高', effort_max:'最大',
-    copy:'コピー', copied:'コピー済み', copy_fail:'失敗', download:'ダウンロード', open_phone:'スマホで開く: ',
+    empty_turn:'出力がないままターンが終了しました。多くの場合、ローカルの claude CLI のログインが期限切れです（端末で claude を実行して再ログイン）。または、このセッションはウェブから再開できません。', copy:'コピー', copied:'コピー済み', copy_fail:'失敗', download:'ダウンロード', open_phone:'スマホで開く: ',
     plan_title:'実行プラン', todo_title:'タスク', ask_title:'選択してください',
     perm_pre:'', perm_post:' を実行しますか？', allow:'許可', deny:'拒否',
     res_allow:'許可済み', res_deny:'拒否済み', res_timeout:'タイムアウト（自動拒否）',
@@ -788,7 +797,7 @@ const I18N = {
     perm_interactive:'逐项批准', perm_acceptEdits:'自动编辑', perm_bypass:'完全自动', perm_plan:'规划模式',
     model_default:'默认模型',
     effort_default:'默认深度', effort_low:'低', effort_medium:'中', effort_high:'高', effort_xhigh:'极高', effort_max:'最大',
-    copy:'复制', copied:'已复制', copy_fail:'复制失败', download:'下载', open_phone:'在手机打开 ',
+    empty_turn:'这一轮没有任何输出就结束了。最常见原因：本机 claude CLI 登录已过期（在电脑终端执行 claude 重新登录）；或该 session 无法从网页端续接。', copy:'复制', copied:'已复制', copy_fail:'复制失败', download:'下载', open_phone:'在手机打开 ',
     plan_title:'执行计划', todo_title:'待办', ask_title:'需要你选择',
     perm_pre:'要执行 ', perm_post:'，允许吗？', allow:'允许', deny:'拒绝',
     res_allow:'已允许', res_deny:'已拒绝', res_timeout:'超时（自动拒绝）',
@@ -814,7 +823,7 @@ const I18N = {
     perm_interactive:'매번 승인', perm_acceptEdits:'자동 편집', perm_bypass:'완전 자동', perm_plan:'플랜 모드',
     model_default:'기본 모델',
     effort_default:'기본 강도', effort_low:'낮음', effort_medium:'중간', effort_high:'높음', effort_xhigh:'매우 높음', effort_max:'최대',
-    copy:'복사', copied:'복사됨', copy_fail:'실패', download:'다운로드', open_phone:'휴대폰에서 열기: ',
+    empty_turn:'출력 없이 턴이 종료되었습니다. 대개 로컬 claude CLI 로그인이 만료된 경우입니다(터미널에서 claude 실행해 다시 로그인). 또는 이 세션은 웹에서 재개할 수 없습니다.', copy:'복사', copied:'복사됨', copy_fail:'실패', download:'다운로드', open_phone:'휴대폰에서 열기: ',
     plan_title:'실행 계획', todo_title:'할 일', ask_title:'선택이 필요합니다',
     perm_pre:'', perm_post:' 실행을 허용할까요?', allow:'허용', deny:'거부',
     res_allow:'허용됨', res_deny:'거부됨', res_timeout:'시간 초과(자동 거부)',
@@ -840,7 +849,7 @@ const I18N = {
     perm_interactive:'Aprobar cada uno', perm_acceptEdits:'Auto-editar', perm_bypass:'Auto total', perm_plan:'Modo plan',
     model_default:'Modelo predet.',
     effort_default:'Esfuerzo predet.', effort_low:'Bajo', effort_medium:'Medio', effort_high:'Alto', effort_xhigh:'Muy alto', effort_max:'Máximo',
-    copy:'Copiar', copied:'Copiado', copy_fail:'Error', download:'Descargar', open_phone:'Abrir en el móvil: ',
+    empty_turn:'El turno terminó sin salida. Lo más probable es que la sesión del CLI claude haya expirado (ejecuta claude en una terminal para iniciar sesión), o que esta sesión no se pueda reanudar desde la web.', copy:'Copiar', copied:'Copiado', copy_fail:'Error', download:'Descargar', open_phone:'Abrir en el móvil: ',
     plan_title:'Plan', todo_title:'Tareas', ask_title:'Se necesita tu elección',
     perm_pre:'Ejecutar ', perm_post:' — ¿permitir?', allow:'Permitir', deny:'Denegar',
     res_allow:'Permitido', res_deny:'Denegado', res_timeout:'Tiempo agotado (denegado)',
@@ -866,7 +875,7 @@ const I18N = {
     perm_interactive:'Approuver chaque', perm_acceptEdits:'Auto-édition', perm_bypass:'Tout auto', perm_plan:'Mode plan',
     model_default:'Modèle par défaut',
     effort_default:'Effort par défaut', effort_low:'Faible', effort_medium:'Moyen', effort_high:'Élevé', effort_xhigh:'Très élevé', effort_max:'Max',
-    copy:'Copier', copied:'Copié', copy_fail:'Échec', download:'Télécharger', open_phone:'Ouvrir sur mobile : ',
+    empty_turn:'Le tour s’est terminé sans sortie. Le plus probable : la connexion du CLI claude a expiré (lancez claude dans un terminal pour vous reconnecter), ou cette session n’est pas reprenable depuis le web.', copy:'Copier', copied:'Copié', copy_fail:'Échec', download:'Télécharger', open_phone:'Ouvrir sur mobile : ',
     plan_title:'Plan', todo_title:'Tâches', ask_title:'Votre choix est requis',
     perm_pre:'Exécuter ', perm_post:' — autoriser ?', allow:'Autoriser', deny:'Refuser',
     res_allow:'Autorisé', res_deny:'Refusé', res_timeout:'Expiré (refus auto)',
@@ -892,7 +901,7 @@ const I18N = {
     perm_interactive:'Einzeln bestätigen', perm_acceptEdits:'Auto-Bearbeiten', perm_bypass:'Vollautomatisch', perm_plan:'Planmodus',
     model_default:'Standardmodell',
     effort_default:'Standard-Aufwand', effort_low:'Niedrig', effort_medium:'Mittel', effort_high:'Hoch', effort_xhigh:'Sehr hoch', effort_max:'Max',
-    copy:'Kopieren', copied:'Kopiert', copy_fail:'Fehler', download:'Herunterladen', open_phone:'Auf dem Handy öffnen: ',
+    empty_turn:'Die Runde endete ohne Ausgabe. Meist ist die Anmeldung der lokalen claude-CLI abgelaufen (claude im Terminal ausführen, um sich erneut anzumelden), oder diese Sitzung ist nicht über das Web fortsetzbar.', copy:'Kopieren', copied:'Kopiert', copy_fail:'Fehler', download:'Herunterladen', open_phone:'Auf dem Handy öffnen: ',
     plan_title:'Plan', todo_title:'Aufgaben', ask_title:'Deine Wahl ist gefragt',
     perm_pre:'', perm_post:' ausführen — erlauben?', allow:'Erlauben', deny:'Ablehnen',
     res_allow:'Erlaubt', res_deny:'Abgelehnt', res_timeout:'Zeitüberschreitung (abgelehnt)',
@@ -932,7 +941,7 @@ function toggleTheme() {
 
 // App build stamp — shown in the adv menu + console so we can tell instantly
 // which version a device actually loaded.
-const APP_VER = 'v1.1.5 (2026-07-17)';
+const APP_VER = 'v1.1.7 (2026-07-20b)';
 try { console.log('PocketClaude', APP_VER); document.getElementById('app-ver').textContent = APP_VER; } catch {}
 
 // ── Marked setup — resilient: a blocked/missing lib must not kill the app ──
@@ -1541,6 +1550,15 @@ function buildMsg(m) {
     appendCopy(d, m.text);
     return d;
   }
+  if (m.type === 'error') {
+    const d = document.createElement('div'); d.className = 'row-claude';
+    const inner = document.createElement('div'); inner.className = 'bub-err';
+    inner.innerHTML = `<i class="ti ti-alert-triangle"></i> <span></span>`;
+    inner.querySelector('span').textContent = m.text;
+    d.appendChild(inner);
+    appendCopy(d, m.text);
+    return d;
+  }
   if (m.type === 'tool') {
     const special = buildSpecialTool(m);
     if (special) return special;
@@ -1676,9 +1694,24 @@ function connect() {
       const id = rkey(msg);
       busy.add(id); if (id === aid) { updateBusyUI(); showTyping(); }
     }
+    // The CLI's stderr was previously broadcast but never rendered, so a failed
+    // turn (e.g. "No conversation found" when resuming a session the Desktop app
+    // has converted to its queue format) looked exactly like a hang: typing dots
+    // forever, nothing else. Always surface it.
+    else if (msg.type === 'spawn_stderr') {
+      const id = rkey(msg);
+      const text = String(msg.text || '').trim();
+      if (text) { ensureSpawnSession(id); S[id] && (S[id].sawError = true); push(id, { type: 'error', text }); }
+      if (id === aid) hideTyping();
+    }
     else if (msg.type === 'turn_end') {
       const id = rkey(msg);
+      const hadText = !!(S[id]?.live?.text || '').trim();
       finalizeLive(id);                    // seal the streamed reply into a permanent bubble
+      // A turn that produced no output and no error is a silent failure — say so
+      // rather than leaving the user staring at an empty bubble.
+      if (!hadText && !S[id]?.sawError) push(id, { type: 'error', text: T('empty_turn') });
+      if (S[id]) S[id].sawError = false;
       busy.delete(id);
       if (id === aid) { updateBusyUI(); hideTyping(); }
       else bump(id);                       // background session finished a turn

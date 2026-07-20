@@ -680,7 +680,17 @@ function streamUserLine(text, imgPaths) {
 // Parse one stdout line from a streaming CLI process and turn it into client
 // events. `entry` is the activeSpawns record; `key` its map key.
 function handleStreamLine(entry, key, line) {
-  let o; try { o = JSON.parse(line); } catch { return; }
+  let o;
+  try { o = JSON.parse(line); }
+  catch {
+    // The CLI prints fatal startup failures as PLAIN TEXT on stdout, not
+    // stream-json — e.g. "Failed to authenticate: OAuth session expired and
+    // could not be refreshed". Dropping every unparsable line silently turned
+    // an expired login into a reply that simply never arrived. Surface it.
+    const t = line.trim();
+    if (t) broadcast({ type: 'spawn_stderr', text: t, key, sessionId: entry.cliSessionId, resumeSessionId: entry.cliSessionId || (key !== '__spawn__' ? key : null) });
+    return;
+  }
   const sid = entry.cliSessionId || (key !== '__spawn__' ? key : null);
   if (o.type === 'system' && o.subtype === 'init' && o.session_id) {
     // A fresh (non-resume) session reveals its real id here — remember it so
@@ -784,7 +794,9 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
       if (line.trim()) handleStreamLine(entry, key, line);
     }
   });
-  proc.stderr.on('data', chunk => broadcast({ type: 'spawn_stderr', text: chunk.toString() }));
+  // Carry the session identity so the client can route this to the right
+  // conversation — without it the error can't be attributed and gets dropped.
+  proc.stderr.on('data', chunk => broadcast({ type: 'spawn_stderr', text: chunk.toString(), resumeSessionId, key, sessionId: entry.cliSessionId }));
   // A spawn-level failure (ENOENT, EACCES, …) emits 'error' on the child; with
   // no listener Node rethrows it as an uncaught exception and kills the whole
   // server. Surface it to the client and clean up instead of dying.
@@ -792,7 +804,7 @@ function startClaude(cwd, prompt, resumeSessionId, permissionMode, model, effort
     clearIdle(entry);
     activeSpawns.delete(key);
     if (mcpConfig) { try { fs.unlinkSync(mcpConfig); } catch {} }
-    broadcast({ type: 'spawn_stderr', text: `failed to start claude: ${err.code || ''} ${err.message}` });
+    broadcast({ type: 'spawn_stderr', text: `failed to start claude: ${err.code || ''} ${err.message}`, resumeSessionId, key, sessionId: entry.cliSessionId });
     broadcast({ type: 'spawn_end', code: -1, resumeSessionId, key, sessionId: entry.cliSessionId });
   });
   proc.on('close', code => {
